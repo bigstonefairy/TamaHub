@@ -321,6 +321,10 @@ bool sdSerialCommand(const String &line) {
     }
     if (!sdTransferAt || millis() - sdTransferAt >= SD_TRANSFER_IDLE_MS) sdTransferFiles = 0;
     invalidatePackForPath(path);
+    // FILE_WRITE on SD_MMC appends when the file already exists on this core.
+    // The web uploader resumes/retries files, so a partial or older copy must be
+    // removed first or the retry would append to it and corrupt the sprite.
+    if (SD_MMC.exists(path)) SD_MMC.remove(path);
     File f = SD_MMC.open(path, FILE_WRITE);
     if (!f) {
       Serial.println("ERR");

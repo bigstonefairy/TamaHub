@@ -23,6 +23,17 @@ firmwares for one board. The original authors did the hard part.
   respective rights holders.
 - Sprite packs are not authored by this project; they are the same assets the
   upstream projects distribute.
+- `web/sd/tamapoke/sprites.pak` (303 entries) and
+  `web/sd/tamadigi/sprites-ver1..5.pak` (175 unique entries after merging) are
+  byte-for-byte copies of the upstream web bundles. They are **not** covered by
+  the MIT licence: the Pokémon sprites are CC BY-NC, the Digimon sprites belong
+  to their rights holders.
+
+## Web installer / SD uploader
+
+- The TPAK bundle format, the `PUT` serial protocol and the original browser
+  uploader logic come from **TamaPoke** and **TamaDigi** (MIT). TamaHub's page
+  reimplements the client for its own per-game SD roots and adds resume/retry.
 
 ## Libraries
 

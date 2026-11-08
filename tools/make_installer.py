@@ -39,6 +39,17 @@ BUILD_BINS = {
     "ota_1": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
 }
 
+# Sprite packs served next to the installer for the Web Serial SD uploader.
+# They are the upstream bundles, copied into the repository under web/sd/.
+SD_ASSETS = [
+    os.path.join("tamapoke", "sprites.pak"),
+    os.path.join("tamadigi", "sprites-ver1.pak"),
+    os.path.join("tamadigi", "sprites-ver2.pak"),
+    os.path.join("tamadigi", "sprites-ver3.pak"),
+    os.path.join("tamadigi", "sprites-ver4.pak"),
+    os.path.join("tamadigi", "sprites-ver5.pak"),
+]
+
 
 def app_version(path: str) -> str:
     """Read the app description written by the ESP-IDF image header."""
@@ -128,6 +139,12 @@ def main() -> int:
         shutil.copy2(src, os.path.join(args.out, f"{slot}.bin"))
         copied[slot] = f"{slot}.bin"
 
+    sd_src = os.path.join(ROOT, "web", "sd")
+    for rel in SD_ASSETS:
+        path = os.path.join(sd_src, rel)
+        if not os.path.isfile(path):
+            errors.append(f"missing sprite pack: {path}")
+
     if errors:
         print("cannot build installer:", file=sys.stderr)
         for e in errors:
@@ -179,6 +196,17 @@ def main() -> int:
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(args.out, name))
 
+    # Sprite packs for the SD uploader. The uploader fetches sd/... from the
+    # same origin, so GitHub Pages needs no CORS handling.
+    if os.path.isdir(sd_src):
+        shutil.copytree(sd_src, os.path.join(args.out, "sd"), dirs_exist_ok=True)
+
+    sd_bytes = 0
+    for rel in SD_ASSETS:
+        path = os.path.join(args.out, "sd", rel)
+        if os.path.isfile(path):
+            sd_bytes += os.path.getsize(path)
+
     print(f"installer written to {args.out}")
     for slot in ("factory", "ota_0", "ota_1"):
         print(
@@ -186,6 +214,7 @@ def main() -> int:
             f"{sizes[slot]:>9,} bytes  @0x{rows[slot]['offset']:06X}"
         )
     print("  bootloader @0x0, partition table @0x8000, boot_app0.bin omitted")
+    print(f"  sprite packs  {len(SD_ASSETS)} files, {sd_bytes / (1024 * 1024):.1f} MB")
     return 0
 
 

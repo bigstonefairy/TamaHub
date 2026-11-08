@@ -25,6 +25,13 @@ First multi-game release for the Waveshare ESP32-S3-Touch-AMOLED-1.75.
 - **Web installer**: ESP Web Tools page with a full first install and per-slot
   update manifests; every part is written at its own offset and `boot_app0.bin`
   is never used.
+- **Web Serial SD uploader**: the installer page can copy the sprite packs over
+  USB while the selected game is running. It parses the upstream TPAK bundles,
+  merges the five Digimon regions (one shared `thumbs.bin`), resumes interrupted
+  uploads and supports manual `.bin` files. The bundles live in `web/sd/` and
+  are served from the same origin as the page.
+- **Digimon PUT safety**: `PUT` removes an existing file before writing, so a
+  resumed or retried upload replaces it instead of appending to a partial file.
 - **Tooling**: `build_all.ps1`, `check_layout.py`, `check_installer.py`,
   `make_installer.py`, `prepare_sd.ps1`, and a Windows ASCII-path staging
   script for profiles such as `C:\Users\레오`.
@@ -37,13 +44,15 @@ First multi-game release for the Waveshare ESP32-S3-Touch-AMOLED-1.75.
 |---|---|---:|---|
 | TamaHub | 1.0 | 434,992 B | `0x20000` |
 | TamaPoke | 1.18 (upstream `1fff020`) | 852,704 B | `0x320000` |
-| TamaDigi | 1.0.1 (upstream `8d1878a`) | 1,665,888 B | `0x620000` |
+| TamaDigi | 1.0.1 (upstream `8d1878a`) | 1,666,016 B | `0x620000` |
 
 ### Known limitations
 
 - Time spent powered off **while sitting in TamaHub** is treated as paused, not
   offline progression. Normal use (game → hold → hub → game) is unaffected.
 - The third slot (`ota_2`) is reserved but has no game in v1.
+- SD sprite uploads run over Web Serial **only while TamaPoke or TamaDigi is
+  running**; TamaHub does not mount the SD, so the hub screen cannot upload.
 - Offline progression and pause timestamps require a valid RTC reading; fit the
   PCF85063 backup cell.
 - Arduino IDE's Upload button must not be used: it writes the app to `0x10000`

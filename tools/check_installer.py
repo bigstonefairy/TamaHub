@@ -48,6 +48,16 @@ REQUIRED_FILES = (
     "tamadigi.bin",
 )
 
+# Sprite bundles used by the Web Serial uploader, relative to web/dist.
+SD_ASSETS = (
+    "sd/tamapoke/sprites.pak",
+    "sd/tamadigi/sprites-ver1.pak",
+    "sd/tamadigi/sprites-ver2.pak",
+    "sd/tamadigi/sprites-ver3.pak",
+    "sd/tamadigi/sprites-ver4.pak",
+    "sd/tamadigi/sprites-ver5.pak",
+)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -58,6 +68,18 @@ def main() -> int:
     for name in REQUIRED_FILES:
         if not os.path.isfile(os.path.join(args.dist, name)):
             errors.append(f"missing {name}")
+
+    for rel in SD_ASSETS:
+        path = os.path.join(args.dist, rel)
+        if not os.path.isfile(path):
+            errors.append(f"missing sprite pack {rel}")
+            continue
+        if os.path.getsize(path) < 1024 * 1024:
+            errors.append(f"{rel} is unexpectedly small")
+            continue
+        with open(path, "rb") as f:
+            if f.read(4) != b"TPAK":
+                errors.append(f"{rel} does not start with the TPAK magic")
 
     manifests = sorted(
         p for p in os.listdir(args.dist) if p.startswith("manifest") and p.endswith(".json")

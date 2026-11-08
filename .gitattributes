@@ -1,0 +1,5 @@
+* text=auto
+
+# Sprite bundles are opaque binary; never normalise or diff them as text.
+*.pak binary
+*.bin binary

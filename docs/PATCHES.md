@@ -69,7 +69,7 @@ without being able to write into the other game's sprites.
 |---|---|
 | `TamaDigi.ino` | include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (uses the existing `pet.saveNow()`; save → release → verify hub → restart) |
 | `pet.cpp` | `resumeAt` in `syncClock()` |
-| `sdmon.cpp` | `MONS_ROOT`; pack marker and `thumbs.bin` comparison use it; `PUT` is restricted to `/tamadigi/mons/` (upstream `mons/…` is rewritten) |
+| `sdmon.cpp` | `MONS_ROOT`; pack marker and `thumbs.bin` comparison use it; `PUT` is restricted to `/tamadigi/mons/` (upstream `mons/…` is rewritten); `PUT` removes an existing file first so a resumed/retried upload replaces it instead of appending |
 
 ## Not patched on purpose
 

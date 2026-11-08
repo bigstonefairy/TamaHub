@@ -131,6 +131,28 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 두 게임 모두 스프라이트를 microSD에서 읽고, 경로가 겹치지 않도록 게임별 루트로 분리했습니다.
 
+### 웹에서 바로 넣기 (권장)
+
+GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** 섹션에서 USB로 바로
+업로드할 수 있습니다. SD 카드를 뽑을 필요가 없습니다.
+
+1. microSD를 보드에 넣습니다.
+2. 업로드할 게임을 실행합니다.
+   - Pokémon → **TamaPoke** 화면
+   - Digimon → **TamaDigi** 화면
+3. 페이지에서 **보드 연결** → 해당 게임의 **스프라이트 넣기** 버튼.
+4. 완료 후 전원을 껐다 켭니다.
+
+- **TamaHub 화면에서는 업로드가 안 됩니다.** 게임이 실행 중일 때만 SD와 시리얼을
+  함께 제어할 수 있습니다.
+- Pokémon 약 40MB, Digimon 약 10MB. 중간에 끊기면 USB를 다시 연결하고 같은
+  버튼을 누르면 이미 보낸 파일은 건너뜁니다.
+- SD를 포맷했거나 카드를 바꿨다면 페이지의 **진행 기록 초기화**를 누르세요.
+- 스프라이트 팩은 `web/sd/`에 포함되어 Pages에서 페이지와 같은 오리진으로
+  제공됩니다. (CORS 문제 없음)
+
+### 수동 준비
+
 ```
 /tamapoke/mons/p001.bin
 /tamapoke/mons/ps001.bin
@@ -327,6 +349,7 @@ partitions.csv        동결된 v1 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
                       (setup_windows_toolchain.ps1: 한글 경로 우회)
 web/                  GitHub Pages 설치 페이지
+web/sd/               웹 SD 업로더용 스프라이트 팩 (TPAK)
 docs/                 설계, 하드웨어, 패치, 업스트림 기록
 CHANGELOG.md          릴리스 노트
 .github/workflows/    CI (3개 앱 빌드 + 크기 검사 + Pages)
