@@ -8,12 +8,27 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deployments: a newer push waits for the running one instead
+# of racing it. The later run still wins.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Create the Pages site on the first run (build_type = workflow), so a
+      # fresh repository does not need the manual Settings -> Pages click.
+      - name: Enable / configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/setup-python@v5
         with:

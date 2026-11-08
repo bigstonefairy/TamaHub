@@ -1,5 +1,9 @@
 # TamaHub
 
+[![build](https://github.com/bigstonefairy/TamaHub/actions/workflows/build.yml/badge.svg)](https://github.com/bigstonefairy/TamaHub/actions/workflows/build.yml)
+
+설치 페이지: <https://bigstonefairy.github.io/TamaHub/>
+
 Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)** 와
 **TamaDigi(Digimon)** 를 함께 즐기는 멀티게임 빌드입니다.
 

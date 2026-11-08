@@ -84,6 +84,9 @@ git push -u origin main
 
 ## 3. GitHub Pages 켜기
 
+이 저장소의 워크플로는 `actions/configure-pages@v5`(`enablement: true`)로
+첫 실행 때 Pages를 자동으로 켜려고 시도합니다. 그래도 아래를 확인하세요.
+
 1. 저장소 → **Settings** → **Pages**
 2. **Build and deployment** → **Source: GitHub Actions**
 3. **Actions** 탭에서 `build` 워크플로가 도는지 확인
@@ -139,6 +142,7 @@ git push
 | `failed to push some refs` | 원격에 이미 커밋이 있음. `git pull --rebase origin main` 후 다시 push |
 | Actions에서 빌드 실패 | Actions 로그의 첫 `error:` 확인. 로컬에서 `.\tools\build_all.ps1 -Installer`로 재현 |
 | Pages 404 | Settings → Pages의 Source가 **GitHub Actions**인지, 워크플로가 성공했는지 확인 |
+| `Get Pages site failed` | Settings → Pages → Source: **GitHub Actions**로 설정한 뒤, Actions에서 **Re-run failed jobs** |
 | Private 저장소에서 Pages 안 됨 | Public으로 전환하거나 유료 플랜 사용 |
 
 ---
