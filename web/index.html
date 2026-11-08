@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TamaHub — Pokémon + Digimon 멀티부팅</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #151a24;
+    --panel2: #1c2330;
+    --line: #2b3444;
+    --fg: #e8edf7;
+    --dim: #9aa6b8;
+    --poke: #ff4d4d;
+    --digi: #4da3ff;
+    --ok: #43d17a;
+    --warn: #ffb020;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 18px 64px;
+    background: radial-gradient(1200px 700px at 50% -10%, #1b2434 0%, var(--bg) 60%);
+    color: var(--fg);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  main { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 34px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h1 .poke { color: var(--poke); }
+  h1 .digi { color: var(--digi); }
+  .sub { color: var(--dim); margin: 0 0 28px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px 22px 20px;
+    margin: 0 0 18px;
+  }
+  h2 { font-size: 18px; margin: 0 0 14px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; color: var(--fg); }
+  p, li { color: var(--dim); font-size: 14.5px; }
+  code {
+    background: #0d1119; border: 1px solid var(--line); border-radius: 6px;
+    padding: 1px 6px; font-size: 13px; color: #cfe1ff;
+  }
+  pre {
+    background: #0d1119; border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; color: #cfe1ff;
+  }
+  .install {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; margin: 12px 0;
+  }
+  .install.big { border-color: #3a4a66; }
+  .install .label { flex: 1 1 260px; }
+  .install .label strong { display: block; font-size: 15px; color: var(--fg); }
+  .install .label span { font-size: 13px; color: var(--dim); }
+  esp-web-install-button { flex: 0 0 auto; }
+  .updates { display: flex; flex-wrap: wrap; gap: 10px; }
+  .updates .install { flex: 1 1 220px; margin: 0; }
+  .warn {
+    border-left: 3px solid var(--warn); background: #221a0d;
+    padding: 10px 14px; border-radius: 8px; color: #ffd79a; font-size: 14px;
+  }
+  .ok { color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; }
+  td code { white-space: nowrap; }
+  footer { text-align: center; color: #66738a; font-size: 12.5px; margin-top: 28px; }
+  a { color: #7fb4ff; }
+  .pill { display: inline-block; font-size: 11.5px; border: 1px solid var(--line);
+          border-radius: 999px; padding: 1px 9px; color: var(--dim); margin-left: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="poke">Tama</span><span class="digi">Hub</span></h1>
+  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon과 Digimon을 한 기기에, 부팅 메뉴로.</p>
+
+  <section>
+    <h2>설치 <span class="pill">Chrome / Edge 데스크톱</span></h2>
+    <div class="warn">
+      <strong>처음 설치할 때는 칩 전체 지우기(Erase)가 필요합니다.</strong><br>
+      기존에 쓰던 세이브가 있다면 먼저 백업하세요. TamaDigi의 <code>EXPORT</code>, TamaPoke의 세이브 백업 기능을 사용하거나,
+      설치 전에 기존 펌웨어로 한 번 켜서 저장이 끝난 상태로 만들어 두세요.<br>
+      <strong>설치 중에는 USB 케이블을 뽑지 마세요.</strong> 쓰기가 중단되면 부팅이 불가능해질 수 있습니다.
+    </div>
+
+    <div class="install big">
+      <div class="label">
+        <strong>전체 설치 (TamaHub + TamaPoke + TamaDigi)</strong>
+        <span>부트로더 · 파티션 테이블 · 허브 · 두 게임을 각자의 주소에 씁니다.</span>
+      </div>
+      <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+    </div>
+
+    <h3>게임만 업데이트 (세이브 유지)</h3>
+    <p>파티션 테이블과 NVS를 건드리지 않고 해당 슬롯만 다시 씁니다.</p>
+    <div class="updates">
+      <div class="install">
+        <div class="label"><strong>허브</strong><span>factory</span></div>
+        <esp-web-install-button manifest="manifest-factory.json"></esp-web-install-button>
+      </div>
+      <div class="install">
+        <div class="label"><strong>Pokémon</strong><span>ota_0</span></div>
+        <esp-web-install-button manifest="manifest-ota0.json"></esp-web-install-button>
+      </div>
+      <div class="install">
+        <div class="label"><strong>Digimon</strong><span>ota_1</span></div>
+        <esp-web-install-button manifest="manifest-ota1.json"></esp-web-install-button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>처음 켜면</h2>
+    <ol>
+      <li><strong>TamaHub</strong>가 뜨고 세 개의 카드가 보입니다: Pokémon, Digimon, Extra Slot.</li>
+      <li>카드를 터치하면 해당 게임으로 재부팅합니다. 아래쪽 BOOT 버튼으로도 선택/실행할 수 있습니다.</li>
+      <li>게임을 고른 뒤에는 전원을 껐다 켜도 <strong>마지막 게임으로 바로</strong> 부팅합니다.</li>
+      <li>다른 게임으로 바꾸려면 게임 중 <strong>아래쪽 버튼을 2초 이상 누른 뒤 놓으세요.</strong></li>
+    </ol>
+    <div class="warn">
+      아래쪽 버튼은 <strong>BOOT(GPIO0)</strong>입니다. 부팅 중에 누르고 있으면 다운로드 모드로 들어가므로,
+      반드시 <em>게임이 켜진 뒤</em> 길게 누르세요. 전환은 손을 <strong>뗀 뒤</strong> 실행됩니다.
+    </div>
+  </section>
+
+  <section>
+    <h2>SD 카드 준비</h2>
+    <p>두 게임의 스프라이트 경로가 겹치지 않도록 게임별 폴더로 분리했습니다. microSD 루트가 아래처럼 보여야 합니다.</p>
+    <pre>/tamapoke/mons/p001.bin
+/tamapoke/mons/ps001.bin
+/tamapoke/mons/thumbs.bin
+
+/tamadigi/mons/p001.bin
+/tamadigi/mons/ps001.bin
+/tamadigi/mons/thumbs.bin
+/tamadigi/mons/.pack-1 ... .pack-5</pre>
+    <ul>
+      <li>각 게임 저장소의 <code>tools/sdcard/mons</code> 내용을 위 폴더로 복사하면 됩니다.</li>
+      <li>예전 <code>/mons</code> 하나만 쓰던 카드라면, 한 게임의 내용을 <code>/tamapoke/mons</code>로 옮기고
+          다른 게임 것은 <code>/tamadigi/mons</code>로 복사하세요. 파일 이름은 같지만 내용은 다릅니다.</li>
+      <li>TamaPoke는 SD 마운트 실패 시 더 이상 카드를 포맷하지 않습니다.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>파티션 / 주소</h2>
+    <table>
+      <tr><th>이름</th><th>용도</th><th>주소</th><th>크기</th></tr>
+      <tr><td><code>nvs</code></td><td>두 게임 + 허브 세이브</td><td>0x9000</td><td>64 KB</td></tr>
+      <tr><td><code>otadata</code></td><td>다음 부팅 앱</td><td>0x19000</td><td>8 KB</td></tr>
+      <tr><td><code>factory</code></td><td>TamaHub</td><td>0x20000</td><td>3 MB</td></tr>
+      <tr><td><code>ota_0</code></td><td>TamaPoke</td><td>0x320000</td><td>3 MB</td></tr>
+      <tr><td><code>ota_1</code></td><td>TamaDigi</td><td>0x620000</td><td>3 MB</td></tr>
+      <tr><td><code>ota_2</code></td><td>추가 게임 슬롯</td><td>0x920000</td><td>3 MB</td></tr>
+    </table>
+    <p style="margin-top:12px">
+      <code>boot_app0.bin</code>은 <strong>0xE000</strong>에 쓰지 않습니다. 이 주소는 64 KB NVS 내부입니다.
+      설치 프로그램은 파트별 오프셋으로만 기록하며, 병합 이미지(offset 0)를 쓰지 않습니다.
+    </p>
+  </section>
+
+  <section>
+    <h2>문제가 생기면</h2>
+    <ul>
+      <li><strong>화면이 검은색</strong>: 부팅 중 BOOT를 누르고 있었는지 확인하세요. 다운로드 모드라면 USB를 다시 꽂고 이 페이지에서 재설치합니다.</li>
+      <li><strong>허브로 돌아오지 않음</strong>: 아래쪽 버튼을 2초 누른 뒤 <em>완전히 떼야</em> 전환됩니다.</li>
+      <li><strong>세이브가 사라짐</strong>: 전체 설치(Erase)를 했는지 확인하세요. 게임 업데이트 버튼은 NVS를 건드리지 않습니다.</li>
+      <li><strong>시리얼 모니터</strong>: 115200 baud. 허브에서 <code>1</code>/<code>2</code>/<code>3</code>은 즉시 실행, <code>SLOTS</code>는 상태 출력입니다.</li>
+    </ul>
+  </section>
+
+  <footer>
+    팬 프로젝트 · 비상업용 · 코드 MIT · Pokémon © Nintendo/Game Freak · Digimon © Bandai/Toei
+  </footer>
+</main>
+
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+</body>
+</html>

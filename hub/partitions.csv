@@ -1,0 +1,18 @@
+# TamaHub v1 partition table for 16 MB flash.
+#
+# DO NOT reorder or resize these entries.  NVS lives at 0x9000 and moving it
+# wipes every save on the device.  The three app slots are deliberately the
+# same size, so any app can be rebuilt and flashed into any free slot.
+#
+#   factory = TamaHub (game menu)
+#   ota_0   = TamaPoke
+#   ota_1   = TamaDigi
+#   ota_2   = extra game slot (empty in v1)
+#
+# Name,     Type, SubType,  Offset,     Size,       Flags
+nvs,        data, nvs,      0x9000,     0x10000,
+otadata,    data, ota,      0x19000,    0x2000,
+factory,    app,  factory,  0x20000,    0x300000,
+ota_0,      app,  ota_0,    0x320000,   0x300000,
+ota_1,      app,  ota_1,    0x620000,   0x300000,
+ota_2,      app,  ota_2,    0x920000,   0x300000,

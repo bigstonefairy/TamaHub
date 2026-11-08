@@ -1,0 +1,22 @@
+# Build output
+build/
+web/dist/
+
+# Upstream checkouts used locally to vendor the games and SD assets
+_repos/
+
+# Local toolchain download (CI installs its own arduino-cli)
+tools/bin/
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
