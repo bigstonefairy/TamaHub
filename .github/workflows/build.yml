@@ -25,7 +25,9 @@ jobs:
 
       # Create the Pages site on the first run (build_type = workflow), so a
       # fresh repository does not need the manual Settings -> Pages click.
+      # Pull requests from forks get a read-only token, so skip it there.
       - name: Enable / configure GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
         with:
           enablement: true

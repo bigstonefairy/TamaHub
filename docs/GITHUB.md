@@ -98,6 +98,13 @@ https://<username>.github.io/<repo>/
 
 이 주소가 웹 설치 프로그램입니다. (HTTPS라서 Web Serial 동작)
 
+### 저장소 소개(선택)
+
+저장소 오른쪽 **About**의 톱니바퀴에서:
+
+- Description: `Waveshare ESP32-S3 Tamagotchi multi-boot: TamaPoke (Pokémon) + TamaDigi (Digimon)`
+- Topics: `esp32-s3`, `arduino`, `tamagotchi`, `pokemon`, `digimon`, `ota`, `waveshare`, `amoled`
+
 > Private 저장소는 Pages 배포에 GitHub Pro/Team 이상이 필요할 수 있습니다.
 > 무료로 쓰려면 Public으로 두세요. 이 프로젝트는 **비상업 팬 프로젝트**입니다.
 
