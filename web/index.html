@@ -174,6 +174,9 @@
       TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.
     </div>
     <div class="sd">
+      <p class="hint">microSD는 <strong>FAT32</strong>로 포맷되어 있어야 합니다. 카드가 인식되지 않으면
+         게임을 재부팅한 뒤 다시 시도하세요. 이미 예전 Digimon 빌드라면 위의
+         <strong>Digimon 업데이트</strong>를 먼저 실행하세요(중단 후 재시도 안전).</p>
       <div class="sd-row">
         <button id="sd-connect" class="primary">보드 연결</button>
         <button id="sd-disconnect" disabled>연결 해제</button>
@@ -366,6 +369,7 @@
       refreshButtons();
       log('연결됨. 지금 실행 중인 게임에 업로드합니다.');
     } catch (error) {
+      try { if (port) await port.close(); } catch (closeError) {}
       port = reader = writer = null;
       refreshButtons();
       log('연결 실패: ' + error.message);
