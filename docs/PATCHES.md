@@ -23,6 +23,22 @@ only to make two independent firmwares share one device.
   it is not a valid app image (0xE9), the game shows `HUB MISSING` and stays
   running instead of erasing otadata and leaving the chip with nothing to boot.
 
+### `sdmon.cpp` – serial commands for the web uploader
+
+Both games now answer three commands used by `web/index.html`:
+
+- `WHOAMI` → `TAMAPOKE` or `TAMADIGI`; the page refuses to upload to the hub or
+  to the wrong game.
+- `SDSTAT` → `SD READY total=… used=…` or `SD ERR total=… used=…`, then `DONE`.
+  The page disables uploads until the card is ready.
+- `SDFORMAT` → unmounts and remounts the card. The Arduino `SD_MMC.begin(...,
+  formatIfMountFailed=true)` only formats a card it cannot mount, so a working
+  FAT32 card keeps its data. The page warns that an unreadable card will be
+  reformatted (wiping both games' sprites).
+
+Digi also keeps its upstream `SD MOUNT [FORMAT]` command. Poke's `SDFORMAT` is
+new; `SDINFO` and `LS` remain.
+
 ### `pet.cpp` – `syncClock()`
 
 TamaHub writes `resumeAt = now` into the game's NVS namespace right before

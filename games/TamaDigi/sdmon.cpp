@@ -302,6 +302,26 @@ static void invalidatePackForPath(const String &path) {
 }
 
 bool sdSerialCommand(const String &line) {
+  if (line == "WHOAMI") {
+    Serial.println("TAMADIGI");
+    return true;
+  }
+  if (line == "SDSTAT") {
+    Serial.printf("SD %s total=%llu used=%llu\n", sdReady ? "READY" : "ERR",
+                  (unsigned long long)SD_MMC.totalBytes(),
+                  (unsigned long long)SD_MMC.usedBytes());
+    Serial.println("DONE");
+    return true;
+  }
+  if (line == "SDFORMAT") {
+    // Same semantics as Poke: remount a working card, format only an
+    // unreadable one. Keeps a card that already holds the other game's data.
+    SD_MMC.end();
+    bool ok = sdBegin(true);
+    Serial.println(ok ? "SD FORMAT OK" : "SD FORMAT ERR");
+    Serial.println("DONE");
+    return true;
+  }
   if (line.startsWith("PUT ")) {
     int sp = line.lastIndexOf(' ');
     String path = line.substring(4, sp);

@@ -30,6 +30,11 @@ First multi-game release for the Waveshare ESP32-S3-Touch-AMOLED-1.75.
   merges the five Digimon regions (one shared `thumbs.bin`), resumes interrupted
   uploads and supports manual `.bin` files. The bundles live in `web/sd/` and
   are served from the same origin as the page.
+- **Safe connection handling**: the page asks the firmware `WHOAMI`, so it
+  refuses to upload to TamaHub or to the wrong game; `SDSTAT` exposes the card
+  state; `SDFORMAT` remounts (or formats an unreadable) card. Serial reads now
+  have a real timeout, so an unplugged/old firmware no longer freezes the first
+  file. The page also shows received MB correctly when GitHub Pages gzips a pack.
 - **Digimon PUT safety**: `PUT` removes an existing file before writing, so a
   resumed or retried upload replaces it instead of appending to a partial file.
 - **Tooling**: `build_all.ps1`, `check_layout.py`, `check_installer.py`,
@@ -43,8 +48,8 @@ First multi-game release for the Waveshare ESP32-S3-Touch-AMOLED-1.75.
 | App | Version | Size | Slot |
 |---|---|---:|---|
 | TamaHub | 1.0 | 434,992 B | `0x20000` |
-| TamaPoke | 1.18 (upstream `1fff020`) | 852,704 B | `0x320000` |
-| TamaDigi | 1.0.1 (upstream `8d1878a`) | 1,666,016 B | `0x620000` |
+| TamaPoke | 1.18 (upstream `1fff020`) | 853,040 B | `0x320000` |
+| TamaDigi | 1.0.1 (upstream `8d1878a`) | 1,666,768 B | `0x620000` |
 
 ### Known limitations
 

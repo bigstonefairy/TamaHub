@@ -92,6 +92,7 @@
   .sd button.digi { background: #1d3a5e; border-color: #2f5d94; }
   .sd .status { color: var(--dim); font-size: 13px; }
   .sd .status.on { color: var(--ok); }
+  .sd .status.warn { color: var(--warn); }
   .sd .bar {
     display: none; height: 10px; background: #0d1119;
     border: 1px solid var(--line); border-radius: 999px;
@@ -171,7 +172,9 @@
     <div class="warn">
       <strong>업로드할 게임이 실행 중이어야 합니다.</strong><br>
       Pokémon은 <strong>TamaPoke</strong>, Digimon은 <strong>TamaDigi</strong> 화면이 떠 있을 때 연결하세요.
-      TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.
+      TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.<br>
+      <strong>구버전 펌웨어</strong>는 게임 확인 명령이 없어 연결이 거부됩니다.
+      먼저 위의 <strong>Pokémon / Digimon 업데이트</strong>를 실행하세요.
     </div>
     <div class="sd">
       <p class="hint">microSD는 <strong>FAT32</strong>로 포맷되어 있어야 합니다. 카드가 인식되지 않으면
@@ -182,6 +185,10 @@
         <button id="sd-disconnect" disabled>연결 해제</button>
         <span id="sd-status" class="status">연결 안 됨</span>
       </div>
+      <div class="sd-row">
+        <span id="sd-card" class="status">SD: 확인 안 됨</span>
+        <button id="sd-format" disabled>SD 마운트 / 포맷</button>
+      </div>
       <div class="bar" id="sd-bar"><div></div></div>
       <div class="sd-row">
         <button id="sd-poke" class="poke" disabled>Pokémon 스프라이트 넣기 (~40MB)</button>
@@ -190,6 +197,10 @@
       <p class="hint">
         중간에 끊기면 USB를 다시 연결하고 같은 버튼을 누르세요. 이미 확인된 파일은 건너뜁니다.
         SD를 포맷했거나 카드를 바꿨다면 <button id="sd-reset" class="linklike">진행 기록 초기화</button>를 누르세요.
+      </p>
+      <p class="hint">
+        SD가 인식되지 않으면 <strong>SD 마운트 / 포맷</strong>을 누르세요. 정상 카드는 데이터가 유지되고,
+        인식할 수 없는 카드만 포맷됩니다. 포맷되면 두 게임의 스프라이트가 모두 지워집니다.
       </p>
       <p class="hint">
         직접 만든 <code>.bin</code> 파일:
@@ -272,6 +283,9 @@
   let lineBuf = '';
   let decoder = new TextDecoder();
   let busy = false;
+  let currentGame = null;
+  let sdReady = null;
+  const READ_TIMEOUT = Symbol('read-timeout');
 
   const RESUME = {
     tamapoke: 'tamahub_sd_tamapoke_v1',
@@ -290,6 +304,13 @@
     statusEl.classList.toggle('on', !!on);
   }
 
+  function setCardStatus(text, state) {
+    const el = $('sd-card');
+    el.textContent = text;
+    el.classList.toggle('on', state === 'on');
+    el.classList.toggle('warn', state === 'warn');
+  }
+
   function setProgress(fraction) {
     bar.style.display = 'block';
     fill.style.width = Math.max(0, Math.min(1, fraction)) * 100 + '%';
@@ -297,13 +318,18 @@
 
   function refreshButtons() {
     const connected = !!writer;
+    const canUpload = connected && sdReady === true && !busy;
     $('sd-connect').disabled = connected || busy;
     $('sd-disconnect').disabled = !connected || busy;
-    $('sd-poke').disabled = !connected || busy;
-    $('sd-digi').disabled = !connected || busy;
+    $('sd-poke').disabled = !canUpload || currentGame !== 'tamapoke';
+    $('sd-digi').disabled = !canUpload || currentGame !== 'tamadigi';
+    $('sd-format').disabled = !connected || busy;
     $('sd-reset').disabled = busy;
-    $('sd-files').disabled = !connected || busy;
-    setStatus(connected ? '연결됨' : '연결 안 됨', connected);
+    $('sd-files').disabled = !canUpload;
+    setStatus(connected
+      ? (currentGame === 'tamapoke' ? 'TamaPoke 연결됨'
+        : currentGame === 'tamadigi' ? 'TamaDigi 연결됨' : '연결됨')
+      : '연결 안 됨', connected);
   }
 
   function setBusy(value) {
@@ -325,9 +351,25 @@
         lineBuf = lineBuf.slice(nl + 1);
         return line;
       }
-      if (Date.now() > deadline) return null;
+      const wait = deadline - Date.now();
+      if (wait <= 0) {
+        try { await reader.cancel(); } catch (e) {}
+        return null;
+      }
+      let timer;
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve(READ_TIMEOUT), wait);
+      });
       let result;
-      try { result = await reader.read(); } catch { return null; }
+      try { result = await Promise.race([reader.read(), timeout]); }
+      catch (e) { clearTimeout(timer); return null; }
+      clearTimeout(timer);
+      if (result === READ_TIMEOUT) {
+        // A pending reader.read() cannot be cancelled per call. Close the
+        // stream so it resolves; otherwise the upload stays frozen forever.
+        try { await reader.cancel(); } catch (e) {}
+        return null;
+      }
       if (result.done) return null;
       lineBuf += decoder.decode(result.value, { stream: true });
     }
@@ -344,8 +386,7 @@
     return false;
   }
 
-  async function disconnect() {
-    if (busy) return;
+  async function closePort() {
     try { if (reader) await reader.cancel(); } catch (e) {}
     try { if (reader) reader.releaseLock(); } catch (e) {}
     try { if (writer) writer.releaseLock(); } catch (e) {}
@@ -353,7 +394,53 @@
     port = reader = writer = null;
     lineBuf = '';
     decoder = new TextDecoder();
+    currentGame = null;
+    sdReady = null;
+    setCardStatus('SD: 확인 안 됨', null);
     refreshButtons();
+  }
+
+  async function identifyGame() {
+    await writer.write(enc.encode('WHOAMI\n'));
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      const line = await readLine(Math.max(1, deadline - Date.now()));
+      if (line === 'TAMAPOKE') return 'tamapoke';
+      if (line === 'TAMADIGI') return 'tamadigi';
+      if (line === null) return null;
+    }
+    return null;
+  }
+
+  async function querySd() {
+    await writer.write(enc.encode('SDSTAT\n'));
+    const deadline = Date.now() + 5000;
+    let ready = null;
+    while (Date.now() < deadline) {
+      const line = await readLine(Math.max(1, deadline - Date.now()));
+      if (line === null) break;
+      if (line.startsWith('SD READY')) ready = true;
+      else if (line.startsWith('SD ERR')) ready = false;
+      else if (line === 'DONE') break;
+    }
+    sdReady = ready;
+    if (ready === true) {
+      log('SD: READY');
+      setCardStatus('SD: READY', 'on');
+    } else if (ready === false) {
+      log('SD: 인식되지 않았습니다. 카드를 다시 넣거나 "SD 마운트 / 포맷"을 눌러보세요.');
+      setCardStatus('SD: 인식 안 됨', 'warn');
+    } else {
+      log('SD 상태 응답이 없습니다.');
+      setCardStatus('SD: 응답 없음', 'warn');
+    }
+    refreshButtons();
+    return ready;
+  }
+
+  async function disconnect() {
+    if (busy) return;
+    await closePort();
     log('연결을 해제했습니다.');
   }
 
@@ -366,12 +453,21 @@
       writer = port.writable.getWriter();
       lineBuf = '';
       decoder = new TextDecoder();
-      refreshButtons();
-      log('연결됨. 지금 실행 중인 게임에 업로드합니다.');
+      setBusy(true);
+      const game = await identifyGame();
+      if (!game) {
+        log('게임을 확인할 수 없습니다. TamaPoke/TamaDigi 화면이 떠 있는지 확인하세요. 구버전 펌웨어라면 먼저 업데이트하세요.');
+        await closePort();
+        setBusy(false);
+        return;
+      }
+      currentGame = game;
+      log('연결됨: ' + (game === 'tamapoke' ? 'TamaPoke' : 'TamaDigi'));
+      await querySd();
+      setBusy(false);
     } catch (error) {
-      try { if (port) await port.close(); } catch (closeError) {}
-      port = reader = writer = null;
-      refreshButtons();
+      await closePort();
+      setBusy(false);
       log('연결 실패: ' + error.message);
     }
   };
@@ -423,7 +519,8 @@
     log(`내려받는 중: ${label}`);
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const total = Number(response.headers.get('content-length')) || 0;
+    const compressed = !!response.headers.get('content-encoding');
+    const total = compressed ? 0 : (Number(response.headers.get('content-length')) || 0);
     if (!response.body) return await response.arrayBuffer();
     const stream = response.body.getReader();
     const chunks = [];
@@ -434,9 +531,11 @@
       if (done) break;
       chunks.push(value);
       received += value.length;
-      if (total && received - lastLog >= 2 * 1024 * 1024) {
+      if (received - lastLog >= 2 * 1024 * 1024) {
         lastLog = received;
-        log(`  ${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`);
+        log(total
+          ? `  ${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`
+          : `  ${(received / 1048576).toFixed(1)} MB`);
       }
     }
     const out = new Uint8Array(received);
@@ -496,12 +595,16 @@
       log('전원을 껐다 켜면 스프라이트가 적용됩니다.');
     } else {
       log(`${label} 중단: ${uploaded}개 전송, ${skipped}개 건너뜀, 실패 ${failed}개.`);
-      log('USB를 다시 연결한 뒤 같은 버튼을 누르면 이어서 진행합니다.');
+      log('연결이 끊겼거나 SD가 준비되지 않았습니다. 연결을 해제하고 SD 상태를 확인한 뒤 다시 시도하세요.');
     }
   }
 
   async function uploadPoke() {
     if (!writer || busy) return;
+    if (currentGame !== 'tamapoke' || sdReady !== true) {
+      log('TamaPoke가 실행 중이고 SD가 READY일 때만 Pokémon 업로드를 할 수 있습니다.');
+      return;
+    }
     setBusy(true);
     try {
       const buffer = await fetchPak('sd/tamapoke/sprites.pak', 'Pokémon sprites.pak');
@@ -517,6 +620,10 @@
 
   async function uploadDigi() {
     if (!writer || busy) return;
+    if (currentGame !== 'tamadigi' || sdReady !== true) {
+      log('TamaDigi가 실행 중이고 SD가 READY일 때만 Digimon 업로드를 할 수 있습니다.');
+      return;
+    }
     setBusy(true);
     try {
       const merged = new Map();
@@ -538,6 +645,32 @@
   $('sd-poke').onclick = uploadPoke;
   $('sd-digi').onclick = uploadDigi;
 
+  $('sd-format').onclick = async () => {
+    if (!writer || busy) return;
+    if (!confirm('SD 카드를 다시 마운트합니다. 인식할 수 없는 카드만 포맷되며, 그 경우 두 게임의 스프라이트가 모두 지워집니다. 계속할까요?')) return;
+    setBusy(true);
+    try {
+      await writer.write(enc.encode('SDFORMAT\n'));
+      let outcome = null;
+      const deadline = Date.now() + 60000;
+      while (Date.now() < deadline) {
+        const line = await readLine(Math.max(1, deadline - Date.now()));
+        if (line === null) break;
+        if (line === 'SD FORMAT OK') outcome = true;
+        else if (line === 'SD FORMAT ERR') outcome = false;
+        else if (line === 'DONE') break;
+      }
+      if (outcome === true) log('SD 마운트/포맷 완료.');
+      else if (outcome === false) log('SD 마운트/포맷 실패: 카드가 없거나 손상됐습니다.');
+      else log('SD 마운트/포맷 응답이 없습니다.');
+      await querySd();
+    } catch (error) {
+      log('오류: ' + error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   $('sd-reset').onclick = () => {
     localStorage.removeItem(RESUME.tamapoke);
     localStorage.removeItem(RESUME.tamadigi);
@@ -547,6 +680,11 @@
 
   $('sd-files').onchange = async (event) => {
     if (!writer || busy) return;
+    if (sdReady !== true) {
+      log('SD가 READY일 때만 파일을 업로드할 수 있습니다.');
+      event.target.value = '';
+      return;
+    }
     const files = [...event.target.files];
     if (!files.length) return;
     setBusy(true);

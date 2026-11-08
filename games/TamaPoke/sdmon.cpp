@@ -239,6 +239,31 @@ void SdMon::unload() {
 // ---------------------------------------------------------------------------
 
 bool sdSerialCommand(const String &line) {
+  if (line == "WHOAMI") {
+    Serial.println("TAMAPOKE");
+    return true;
+  }
+  if (line == "SDSTAT") {
+    Serial.printf("SD %s total=%llu used=%llu\n", sdReady ? "READY" : "ERR",
+                  (unsigned long long)SD_MMC.totalBytes(),
+                  (unsigned long long)SD_MMC.usedBytes());
+    Serial.println("DONE");
+    return true;
+  }
+  if (line == "SDFORMAT") {
+    // Unmount first: begin() returns early when the card is already mounted.
+    // The third argument only formats if the card cannot be mounted, so a
+    // working FAT32 card is remounted and its data is kept.
+    SD_MMC.end();
+    sdReady = SD_MMC.begin("/sdcard", true /* modo 1-bit */, true /* formatea si no monta */);
+    if (sdReady) {
+      SD_MMC.mkdir(MONS_ROOT);
+      sdDirty = true;
+    }
+    Serial.println(sdReady ? "SD FORMAT OK" : "SD FORMAT ERR");
+    Serial.println("DONE");
+    return true;
+  }
   if (line.startsWith("PUT ")) {
     int sp = line.lastIndexOf(' ');
     String path = line.substring(4, sp);
