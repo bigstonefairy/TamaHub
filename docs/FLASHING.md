@@ -175,7 +175,7 @@ E:\tamapoke\mons\thumbs.bin
 
 E:\tamadigi\mons\p001.bin ...
 E:\tamadigi\mons\thumbs.bin
-E:\tamadigi\mons\.pack-1 ... .pack-5   (게임이 자동 생성, 없어도 됨)
+E:\tamadigi\mons\.pack-1 ... .pack-5   (직접 복사 시 없어도 됨)
 ```
 
 - TamaPoke: 업스트림 `tools/sdcard/mons` 내용

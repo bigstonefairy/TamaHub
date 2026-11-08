@@ -139,7 +139,7 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 /tamadigi/mons/p001.bin
 /tamadigi/mons/ps001.bin
 /tamadigi/mons/thumbs.bin
-/tamadigi/mons/.pack-1 ... .pack-5   (게임이 자동 생성, 없어도 됨)
+/tamadigi/mons/.pack-1 ... .pack-5   (직접 복사 시 없어도 됨)
 ```
 
 - TamaPoke: 업스트림 `tools/sdcard/mons` 내용을 `/tamapoke/mons`로 복사.
