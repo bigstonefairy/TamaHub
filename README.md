@@ -12,7 +12,7 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
 - 게임 중 **아래쪽 버튼(BOOT/GPIO0)을 2초 이상 누른 뒤 떼면** 저장하고 허브로 돌아옵니다.
 - 세 게임의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
   분리되어 있어 서로 덮어쓰지 않습니다.
-- **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.0`, 설치 페이지 상단에
+- **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.1`, 설치 페이지 상단에
   Hub/Pokémon/Digimon/Naruto의 빌드 버전이 표시됩니다.
 - 다른 게임을 플레이하는 동안 비활성 게임은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
 
@@ -23,7 +23,7 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
        └─ 게임 지정 → ota_0 = TamaPoke, ota_1 = TamaDigi, ota_2 = TamaNaruto
                       (마지막 게임 자동 재개)
 
-TamaHub v1.0
+TamaHub v1.1
   ├─ Pokémon 카드  → ota_0  (TamaPoke expanded v1.36.2)
   ├─ Digimon 카드  → ota_1  (TamaDigi v1.0.1)
   └─ Naruto 카드   → ota_2  (TamaNaruto v1.2.0)

@@ -33,7 +33,7 @@
 #include <XPowersLib.h>
 
 // ---------------------------------------------------------------- versions --
-#define HUB_VERSION "1.0"
+#define HUB_VERSION "1.1"
 
 // ---------------------------------------------------------------- display ----
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
@@ -116,6 +116,16 @@ static void text(const char *s, int16_t x, int16_t y, uint8_t size, uint16_t col
 }
 
 static void textCenter(const char *s, int16_t y, uint8_t size, uint16_t color) {
+  int16_t w = (int16_t)strlen(s) * 6 * size;
+  text(s, (LCD_WIDTH - w) / 2, y, size, color);
+}
+
+// The panel is round: a title near the top has much less usable width than
+// 466 px.  Shrink the font until the string fits maxWidth.
+static void textCenterFit(const char *s, int16_t y, uint8_t maxSize,
+                          uint16_t color, int16_t maxWidth) {
+  uint8_t size = maxSize;
+  while (size > 1 && (int16_t)strlen(s) * 6 * size > maxWidth) size--;
   int16_t w = (int16_t)strlen(s) * 6 * size;
   text(s, (LCD_WIDTH - w) / 2, y, size, color);
 }
@@ -255,8 +265,10 @@ static void drawFooter() {
 
 static void draw() {
   gfx->fillScreen(C_BG);
-  textCenter("TAMA HUB v" HUB_VERSION, 26, 4, C_FG);
-  textCenter("choose a game", 64, 2, C_DIM);
+  // Keep the title inside the round panel's top chord: size 3 at y=40 is
+  // 234 px wide, while the usable chord there is ~261 px.
+  textCenterFit("TAMA HUB v" HUB_VERSION, 40, 3, C_FG, 300);
+  textCenter("choose a game", 70, 2, C_DIM);
 
   drawCard(0, 92);
   drawCard(1, 198);

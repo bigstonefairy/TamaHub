@@ -12,14 +12,14 @@
 - [ ] 기존 펌웨어의 세이브를 백업했다 (TamaDigi `EXPORT`, TamaPoke 저장).
 - [ ] 웹 설치 프로그램에서 **Erase 포함 전체 설치**를 실행했다.
 - [ ] 설치 후 자동 재부팅되고 **TamaHub**가 뜬다.
-- [ ] 시리얼에 `=== TamaHub ===`, `hub v1.0`, 슬롯 3개가 보인다.
+- [ ] 시리얼에 `=== TamaHub ===`, `hub v1.1`, 슬롯 3개가 보인다.
       Poke/Digi는 `ready`, Extra는 `EMPTY`로 표시된다.
 
 기대 로그:
 
 ```
 === TamaHub ===
-hub v1.0
+hub v1.1
   1 POKEMON      @0x320000 ready
   2 DIGIMON      @0x620000 ready
   3 EXTRA SLOT   no partition

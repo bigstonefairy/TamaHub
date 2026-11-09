@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.1.1 — 2026-11-09
+
+### Fixed
+
+- **Hub 1.1**: the version title was clipped on the round 466×466 panel
+  (`TAMA HUB v1.0` at size 4 near the top). The title is now size 3 at `y=40`
+  with an auto-shrink `textCenterFit()` that respects the usable chord width.
+  Hub serial/installer version is **1.1**.
+
+### Firmware
+
+| App | Version | Size | Slot |
+|---|---|---:|---|
+| TamaHub | 1.1 | 435,008 B | `0x20000` |
+| TamaPoke | 1.36.2 | 730,608 B | `0x320000` |
+| TamaDigi | 1.0.1 | 1,667,744 B | `0x620000` |
+| TamaNaruto | 1.2.0 | 1,719,824 B | `0x920000` |
+
+---
+
 ## v1.1.0 — 2026-11-09
 
 Four-app build: expanded Pokémon, Digimon, Naruto, and version-aware SD tools.
