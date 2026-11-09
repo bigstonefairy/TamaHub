@@ -86,27 +86,44 @@ and every write returned `ERR`. Each game now creates the parent and child in
 
 | File | Change |
 |---|---|
-| `TamaPoke.ino` | force `TAMAPOKE_GEN3_RELEASE` (386 species); add `TAMAHUB_APP_VERSION`; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` |
+| `TamaPoke.ino` | force `TAMAPOKE_GEN3_RELEASE` (386 species); add `TAMAHUB_APP_VERSION` + `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()`; short press calls `physicalBack()` |
 | `pet.h` | public `saveNow()` |
 | `pet.cpp` | `saveNow()` implementation; `resumeAt` in `syncClock()` |
 | `sdmon.cpp` | `MONS_ROOT`; `SD_MMC.begin(..., false)`; path rewrite; `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR`; safe `PUT` |
+| `audio.cpp` | synth master gain 45% (quieter default) |
 
 ## TamaDigi
 
 | File | Change |
 |---|---|
-| `TamaDigi.ino` | include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (uses the existing `pet.saveNow()`; save → release → verify hub → restart) |
+| `TamaDigi.ino` | add `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (save → release → verify hub → restart); short press calls `onSwipeV(1)` |
 | `pet.cpp` | `resumeAt` in `syncClock()` |
 | `sdmon.cpp` | `MONS_ROOT`; pack marker and `thumbs.bin` comparison use it; `PUT` is restricted to `/tamadigi/mons/` (upstream `mons/…` is rewritten); `PUT` removes an existing file first so a resumed/retried upload replaces it instead of appending |
+| `audio.cpp` | default volume 4/10; one-time `volfix` migration moves the old default 7 → 4 |
 
-## TamaNaruto (slot 3)
+## TamaNaruto
 
 | File | Change |
 |---|---|
-| `TamaNaruto.ino` | add `TAMAHUB_APP_VERSION`; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` |
+| `TamaNaruto.ino` | add `TAMAHUB_APP_VERSION` + `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()`; short press calls `onSwipeV(1)` |
 | `pet.cpp` | `resumeAt` in `syncClock()` (NVS namespace `tamanaruto`) |
 | `sdmon.cpp` | `MONS_ROOT = /tamaruto/mons`; path rewrite; `PUT` removes an existing file; `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` |
-| `hub/hub.ino` | slot 3 is now `ota_2` / `tamanaruto` / `NARUTO` |
+| `audio.cpp` | default volume 4/10; one-time `volfix` migration moves the old default 7 → 4 |
+
+## TamaClock (`apps/TamaClock`)
+
+A new, self-contained app that can live in any v2 slot.
+
+| File | Change |
+|---|---|
+| `TamaClock.ino` | RTC clock via `SensorPCF85063`; battery/USB status; `TAMAHUB_APP/VER` tags; serial `SET=`, `TIME=`, `12H`, `24H`, `STATUS`; 2 s hold returns to hub; short press toggles 12/24h |
+| `multiboot.h` | copy of the shared hold/tap + return-to-hub glue |
+
+## TamaHub (`hub/hub.ino`)
+
+| File | Change |
+|---|---|
+| `hub.ino` | v2: 5 equal slots, `HUB_VERSION 1.2`; scans `TAMAHUB_APP:` / `TAMAHUB_VER:` from each image; compact 5-card layout; serial `1`–`5`, `SLOTS`, `R` |
 
 ## Not patched on purpose
 

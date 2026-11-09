@@ -20,24 +20,32 @@
 
 namespace mboot {
 
-constexpr uint8_t kPin = 0;         // BOOT / lower case button
-constexpr uint32_t kHoldMs = 2000;  // hold time that opens the menu
+constexpr uint8_t kPin = 0;          // BOOT / lower case button
+constexpr uint32_t kHoldMs = 2000;   // hold time that opens the menu
+constexpr uint32_t kShortMinMs = 40;  // ignore contact bounce
+constexpr uint32_t kShortMaxMs = 600; // a tap, not a hold in progress
 
 inline void begin() { pinMode(kPin, INPUT_PULLUP); }
 
-// Edge-triggered 2 s hold detector.  Call once per loop().
+// Edge-triggered hold + tap detector.  Call reached() once per loop() and
+// shortPress() right after it.
 class Hold {
  public:
   // Returns true exactly once, when the button has been held for kHoldMs.
   bool reached() {
     const bool down = (digitalRead(kPin) == LOW);
     if (!down) {
+      if (active_ && !fired_) {
+        const uint32_t held = millis() - start_;
+        if (held >= kShortMinMs && held <= kShortMaxMs) releasedShort_ = true;
+      }
       active_ = false;
       return false;
     }
     if (!active_) {
       active_ = true;
       fired_ = false;
+      releasedShort_ = false;
       start_ = millis();
       return false;
     }
@@ -48,9 +56,18 @@ class Hold {
     return false;
   }
 
+  // Returns true exactly once, on the loop after a short press is released.
+  // A real hold never reports a tap: fired_ suppresses it.
+  bool shortPress() {
+    if (!releasedShort_) return false;
+    releasedShort_ = false;
+    return true;
+  }
+
  private:
   bool active_ = false;
   bool fired_ = false;
+  bool releasedShort_ = false;
   uint32_t start_ = 0;
 };
 

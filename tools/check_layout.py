@@ -23,10 +23,12 @@ FLASH_SIZE = 16 * 1024 * 1024
 EXPECTED = {
     "nvs": (0x9000, 0x10000, "data", "nvs"),
     "otadata": (0x19000, 0x2000, "data", "ota"),
-    "factory": (0x20000, 0x300000, "app", "factory"),
-    "ota_0": (0x320000, 0x300000, "app", "ota_0"),
-    "ota_1": (0x620000, 0x300000, "app", "ota_1"),
-    "ota_2": (0x920000, 0x300000, "app", "ota_2"),
+    "factory": (0x20000, 0x200000, "app", "factory"),
+    "ota_0": (0x220000, 0x200000, "app", "ota_0"),
+    "ota_1": (0x420000, 0x200000, "app", "ota_1"),
+    "ota_2": (0x620000, 0x200000, "app", "ota_2"),
+    "ota_3": (0x820000, 0x200000, "app", "ota_3"),
+    "ota_4": (0xA20000, 0x200000, "app", "ota_4"),
 }
 
 # Offsets used by the web installer.  ESP32-S3 bootloader is at 0x0 (not
@@ -179,7 +181,7 @@ def main() -> int:
             print(f"  - {e}", file=sys.stderr)
         return 1
 
-    print("\nOK: layout matches the frozen v1 table.")
+    print("\nOK: layout matches the frozen v2 table.")
     return 0
 
 

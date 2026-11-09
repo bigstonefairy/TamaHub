@@ -5,30 +5,35 @@
 설치 페이지: <https://bigstonefairy.github.io/TamaHub/>
 
 Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
-**TamaDigi(Digimon)**, **TamaNaruto(Naruto)** 를 함께 즐기는 멀티게임 빌드입니다.
+**TamaDigi(Digimon)**, **TamaNaruto(Naruto)**, **TamaClock** 을 함께 즐기는
+멀티앱 빌드입니다. v2부터 **5개의 동일한 2MB 슬롯**에 앱을 원하는 순서로 배치할 수 있습니다.
 
-- 부팅/전환할 때만 **게임 선택 허브(TamaHub)** 가 뜹니다.
-- 게임을 고르면 그 게임으로 재부팅하고, **다음 전원 ON부터는 마지막 게임으로 바로** 이어집니다.
-- 게임 중 **아래쪽 버튼(BOOT/GPIO0)을 2초 이상 누른 뒤 떼면** 저장하고 허브로 돌아옵니다.
-- 세 게임의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
+- 부팅/전환할 때만 **앱 선택 허브(TamaHub)** 가 뜹니다.
+- 앱을 고르면 그 앱으로 재부팅하고, **다음 전원 ON부터는 마지막 앱으로 바로** 이어집니다.
+- 앱 중 **아래쪽 버튼(BOOT/GPIO0)을 2초 이상 누른 뒤 떼면** 저장하고 허브로 돌아옵니다.
+- **BOOT을 짧게 누르면 뒤로가기**입니다. 전투/미니게임은 빠져나가지 않습니다.
+- 앱의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
   분리되어 있어 서로 덮어쓰지 않습니다.
-- **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.1`, 설치 페이지 상단에
-  Hub/Pokémon/Digimon/Naruto의 빌드 버전이 표시됩니다.
-- 다른 게임을 플레이하는 동안 비활성 게임은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
+- **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.2`, 설치 페이지 상단에
+  Hub/Pokémon/Digimon/Naruto/Clock의 빌드 버전이 표시됩니다.
+- 다른 앱을 플레이하는 동안 비활성 앱은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
 
 ```
 전원 ON
   └─ otadata 확인
-       ├─ 비어 있음 → factory = TamaHub  (첫 설치 / 게임에서 돌아온 직후)
-       └─ 게임 지정 → ota_0 = TamaPoke, ota_1 = TamaDigi, ota_2 = TamaNaruto
-                      (마지막 게임 자동 재개)
+       ├─ 비어 있음 → factory = TamaHub  (첫 설치 / 앱에서 돌아온 직후)
+       └─ 앱 지정 → ota_0..ota_4 중 마지막 앱
+                     (마지막 앱 자동 재개)
 
-TamaHub v1.1
-  ├─ Pokémon 카드  → ota_0  (TamaPoke expanded v1.36.2)
-  ├─ Digimon 카드  → ota_1  (TamaDigi v1.0.1)
-  └─ Naruto 카드   → ota_2  (TamaNaruto v1.2.0)
+TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
+  ├─ 슬롯 1 → 예: TamaPoke expanded v1.36.2
+  ├─ 슬롯 2 → 예: TamaDigi v1.0.1
+  ├─ 슬롯 3 → 예: TamaNaruto v1.2.0
+  ├─ 슬롯 4 → 예: TamaClock v1.0.0
+  └─ 슬롯 5 → 비움 (내비게이션 예약)
 
-게임 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
+앱 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
+앱 중 BOOT 짧게   → 뒤로가기 (전투/미니게임 제외)
 ```
 
 > Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.36.2** (386마리)입니다.
@@ -47,9 +52,16 @@ GitHub Pages에 배포되는 `web/dist/index.html` 을 **Chrome 또는 Edge 데�
 (Web Serial은 HTTPS 또는 localhost에서만 동작합니다.)
 
 1. 기기를 USB로 연결합니다.
-2. **전체 설치** 버튼을 누릅니다.
-3. 처음 설치라면 **Erase** 를 선택합니다. (파티션 배치가 기존 펌웨어와 다르므로 필수)
-4. 설치가 끝나면 자동으로 재부팅되고 TamaHub가 뜹니다.
+2. **슬롯 배치**에서 각 앱을 원하는 슬롯(`ota_0`–`ota_4`)에 배치합니다.
+   기본값은 Poke / Digi / Naruto / Clock / 비움입니다.
+3. 기존 사용자는 **v2 레이아웃 설치 (세이브 유지)** 를 누릅니다.
+   부트로더·v2 파티션 테이블·허브·선택한 앱을 쓰며 **Erase를 하지 않습니다**.
+4. 새 기기이거나 세이브를 버려도 될 때만 **처음 설치 / 칩 전체 지우기 (Erase)** 를 사용합니다.
+5. 설치가 끝나면 자동으로 재부팅되고 TamaHub가 뜹니다.
+
+> v2는 NVS(`0x9000`)와 otadata(`0x19000`) 주소를 v1과 동일하게 유지합니다.
+> 따라서 파티션 테이블을 다시 써도 **기존 세이브는 그대로**입니다.
+> 앱 오프셋만 바뀌므로 한 번은 모든 앱을 다시 쓰는 것이 안전합니다.
 
 GitHub Pages 없이 로컬에서 시험하려면 `web/dist`를 정적 서버로 열면 됩니다.
 (Web Serial은 `localhost`에서도 동작합니다.)
@@ -59,16 +71,18 @@ py -m http.server 8000 --directory web/dist
 # 브라우저에서 http://localhost:8000
 ```
 
-전체 설치가 쓰는 주소:
+v2 전체 설치가 쓰는 주소:
 
-| 파트 | 주소 |
-|---|---|
-| bootloader | `0x0` |
-| partition table | `0x8000` |
-| TamaHub | `0x20000` |
-| TamaPoke | `0x320000` |
-| TamaDigi | `0x620000` |
-| TamaNaruto | `0x920000` |
+| 파트 | 주소 | 크기 |
+|---|---|---|
+| bootloader | `0x0` | — |
+| partition table | `0x8000` | — |
+| TamaHub (`factory`) | `0x20000` | 2 MB |
+| 슬롯 1 (`ota_0`) | `0x220000` | 2 MB |
+| 슬롯 2 (`ota_1`) | `0x420000` | 2 MB |
+| 슬롯 3 (`ota_2`) | `0x620000` | 2 MB |
+| 슬롯 4 (`ota_3`) | `0x820000` | 2 MB |
+| 슬롯 5 (`ota_4`) | `0xA20000` | 2 MB |
 
 > **`boot_app0.bin` 은 쓰지 않습니다.** 기본 Arduino 레이아웃에서는 `0xE000`에 쓰지만,
 > 이 빌드에서는 그 주소가 64KB NVS 내부입니다. 설치 프로그램은 파트별 오프셋만 기록합니다.
@@ -83,12 +97,17 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
   0x0      build/hub/hub.ino.bootloader.bin \
   0x8000   build/hub/hub.ino.partitions.bin \
   0x20000  build/hub/hub.ino.bin \
-  0x320000 build/TamaPoke/TamaPoke.ino.bin \
-  0x620000 build/TamaDigi/TamaDigi.ino.bin \
-  0x920000 build/TamaNaruto/TamaNaruto.ino.bin
+  0x220000 build/TamaPoke/TamaPoke.ino.bin \
+  0x420000 build/TamaDigi/TamaDigi.ino.bin \
+  0x620000 build/TamaNaruto/TamaNaruto.ino.bin \
+  0x820000 build/TamaClock/TamaClock.ino.bin
 ```
 
-게임만 업데이트할 때는 해당 앱만 씁니다. NVS와 다른 게임은 그대로 남습니다.
+위 주소는 **기본 배치**(Poke / Digi / Naruto / Clock) 기준입니다. 설치 페이지에서
+순서를 바꿨다면 해당 앱을 선택한 슬롯 주소에 쓰면 됩니다. 허브는 슬롯 오프셋을
+하드코딩하지 않고 이미지 안의 `TAMAHUB_APP:` 이름표를 읽어 카드를 표시합니다.
+
+앱만 업데이트할 때는 해당 앱만 씁니다. NVS와 다른 슬롯은 그대로 남습니다.
 
 > Windows에서 `build_all.ps1`을 실행하면 산출물이 `build\`가 아니라
 > `C:\Users\Public\tamahub-build\`에 생깁니다(한글 경로 우회). 위 경로를 그대로
@@ -100,7 +119,11 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 ```bash
 esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
-  0x320000 build/TamaPoke/TamaPoke.ino.bin
+  0x220000 build/TamaPoke/TamaPoke.ino.bin
+
+# TamaClock을 슬롯 5에 넣고 싶다면
+esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
+  0xA20000 build/TamaClock/TamaClock.ino.bin
 ```
 
 > **Arduino IDE의 Upload 버튼은 쓰지 마세요.** ESP32 Arduino 코어는 업로드할 때
@@ -111,19 +134,24 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 ## 2. 사용법
 
-### 게임 선택
+### 앱 선택
 
 - 카드를 **터치**하면 바로 실행됩니다.
 - 아래쪽 **BOOT** 버튼: 짧게 누르면 선택 이동, **1.2초 이상 누른 뒤 떼면** 실행.
+- 시리얼에서 `1`–`5` 로 해당 슬롯을 즉시 실행할 수 있습니다.
 
-### 게임 전환
+### 앱 전환 / 뒤로가기
 
-1. 게임 중 아래쪽 버튼을 **2초 이상** 누릅니다.
+1. 앱 중 아래쪽 버튼을 **2초 이상** 누릅니다.
 2. `SAVING` → `SAVED` 화면이 뜹니다.
 3. **손을 뗍니다.** (떼기 전에는 재부팅하지 않습니다 — GPIO0이 LOW인 채로 리셋되면 다운로드 모드로 들어가기 때문)
 4. TamaHub로 돌아옵니다.
 
-> 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 게임이 켜진 뒤에 누르세요.
+**짧게 누르면 뒤로가기**입니다. TamaDigi/Naruto는 기존 아래로 스와이프와 같은
+경로를 타고, TamaPoke는 키보드/도움말/시계/도감/게임 메뉴/카드만 닫습니다.
+전투와 미니게임은 짧은 눌림으로 중단되지 않습니다. TamaClock은 12/24시간을 전환합니다.
+
+> 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 앱이 켜진 뒤에 누르세요.
 
 ### 일시정지 정책
 
@@ -249,7 +277,7 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 > `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build_all.ps1 -Installer`
 
 - 허브: `PartitionScheme=custom` + `hub/partitions.csv`
-- 게임: 업스트림과 동일한 `PartitionScheme=app3M_fat9M_16MB`
+- 게임/시계: 업스트림과 동일한 `PartitionScheme=app3M_fat9M_16MB`
 - 빌드 후 `tools/check_layout.py`로 파티션/크기 검증
 - `-Installer`를 주면 `web/dist`에 설치 프로그램 생성 + `tools/check_installer.py`로
   NVS(`0x9000..0x18FFF`)·`0xE000` 침범 여부 검사
@@ -329,31 +357,44 @@ https://<사용자>.github.io/<저장소>/
 
 ---
 
-## 5. 파티션 레이아웃 (v1, 동결)
+## 5. 파티션 레이아웃 (v2, 동결)
 
 ```csv
 nvs,      data, nvs,     0x9000,   0x10000,
 otadata,  data, ota,     0x19000,  0x2000,
-factory,  app,  factory, 0x20000,  0x300000,
-ota_0,    app,  ota_0,   0x320000, 0x300000,
-ota_1,    app,  ota_1,   0x620000, 0x300000,
-ota_2,    app,  ota_2,   0x920000, 0x300000,
+factory,  app,  factory, 0x20000,  0x200000,
+ota_0,    app,  ota_0,   0x220000, 0x200000,
+ota_1,    app,  ota_1,   0x420000, 0x200000,
+ota_2,    app,  ota_2,   0x620000, 0x200000,
+ota_3,    app,  ota_3,   0x820000, 0x200000,
+ota_4,    app,  ota_4,   0xA20000, 0x200000,
 ```
 
-- 앱 슬롯은 각 3MB. TamaPoke 약 0.73MB, TamaDigi 약 1.67MB, TamaNaruto 약 1.72MB로 여유가 있습니다.
-- `nvs`는 64KB. 세 게임이 함께 써도 TamaDigi의 “NVS 공간 부족” 경고가 뜨지 않습니다.
-- **이 표를 바꾸면 세이브가 사라집니다.** `tools/check_layout.py`가 v1 값과 다르면 빌드를 거부합니다.
+- 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.73MB, TamaDigi 약 1.67MB,
+  TamaNaruto 약 1.72MB, TamaClock 약 0.44MB로 여유가 있습니다.
+- `nvs`(64KB)와 `otadata`(8KB)는 **v1과 같은 주소**입니다. 파티션 테이블만 다시 써도
+  세이브는 유지됩니다. `tools/check_layout.py`가 v2 값과 다르면 빌드를 거부합니다.
+- 앱을 어느 슬롯에 넣어도 됩니다. 허브는 각 이미지의 `TAMAHUB_APP:<name>` /
+  `TAMAHUB_VER:<version>` 태그를 스캔해 이름·버전을 표시합니다.
 
-### TamaNaruto (slot 3)
+### 기본 배치와 TamaClock
 
-`ota_2` (`0x920000`)에 TamaNaruto v1.2.0이 들어갑니다. 허브의 세 번째 카드는
-`NARUTO`이며 NVS 네임스페이스는 `tamanaruto`, SD 루트는 `/tamaruto/mons`입니다.
+설치 페이지의 기본 배치는 `ota_0` TamaPoke, `ota_1` TamaDigi, `ota_2` TamaNaruto,
+`ota_3` TamaClock, `ota_4` 비움입니다. `ota_4`는 턴바이턴 내비게이션용으로
+예약되어 있으며, 데이터 소스가 정해지면 앱을 추가합니다.
 
-### 네 번째 게임 추가
+### 내비게이션 슬롯
 
-v1 레이아웃에는 **빈 슬롯이 없습니다.** 추가하려면 `partitions.csv`를 바꿔
-NVS 뒤에 슬롯을 더 만들어야 하며, 이때 기존 세이브/앱을 백업하고 전체 재설치해야
-합니다. `tools/check_layout.py`의 `EXPECTED`도 함께 수정해야 합니다.
+기판에 GPS/지자기가 없어 폰 없이는 경로 탐색이 불가능합니다. Android BLE 동반 앱,
+iPhone 동반 앱, 외장 GPS 중 하나를 정해야 `TamaNav`를 구현할 수 있습니다.
+그때까지 `ota_4`는 비워 두세요.
+
+### 슬롯 재배치
+
+설치 페이지에서 앱을 다른 슬롯으로 옮기면:
+1. **v2 레이아웃 설치 (세이브 유지)** 는 파티션·허브·모든 선택 앱을 다시 씁니다.
+2. **앱만 업데이트** 는 현재 배치의 앱만 다시 씁니다.
+NVS는 건드리지 않으므로 세이브와 설정은 그대로입니다.
 
 ---
 
@@ -363,22 +404,23 @@ NVS 뒤에 슬롯을 더 만들어야 하며, 이때 기존 세이브/앱을 백
 |---|---|
 | 화면이 검은색 | 부팅 중 BOOT를 눌렀는지 확인. 다운로드 모드면 USB 재연결 후 재설치 |
 | 허브로 안 돌아감 | 버튼을 2초 누른 뒤 **완전히 떼야** 재부팅합니다 |
-| 게임 카드가 `NOT INSTALLED` | 해당 슬롯에 앱이 없거나 이미지가 손상됨. 웹 설치 프로그램으로 다시 설치 |
-| `SLOT IS EMPTY` | Naruto(`ota_2`) 슬롯이 비어 있음. 전체 설치 또는 Naruto 업데이트 |
+| 게임 카드가 `NOT INSTALLED` | 해당 슬롯에 앱이 없거나 이미지가 손상됨. 설치 페이지에서 다시 설치 |
+| `SLOT IS EMPTY` | 선택한 슬롯이 비어 있음. 허브에서 다른 카드를 고르거나 해당 앱을 설치 |
 | 게임에서 `HUB MISSING` | `factory` 슬롯이 비었거나 손상됨. 허브를 `0x20000`에 다시 설치 |
 | SD 업로드가 첫 파일에서 멈춤 | Pokémon/Digimon/Naruto 펌웨어를 **모두 최신 빌드로 업데이트**. 페이지가 `WHOAMI`/`SDSTAT`/`SDTEST`로 확인합니다 |
-| `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 세 게임 업데이트를 먼저 실행 |
+| `게임을 확인할 수 없습니다` | TamaHub/Clock 화면이거나 구버전 펌웨어. 게임을 실행하고 앱 업데이트를 먼저 실행 |
 | `SD: 인식 안 됨` | 카드를 다시 넣고 **SD 마운트 / 포맷**. FAT32가 아니면 포맷이 필요할 수 있음 |
 | `SD: 쓰기 실패` | 카드가 쓰기 금지/불량/가득 참. 어댑터 LOCK 확인 → PC에서 FAT32 포맷 또는 카드 교체 |
-| Naruto 카드가 `NOT INSTALLED` | **허브 업데이트** + **Naruto 업데이트**를 실행 (`ota_2`) |
-| 허브에 Naruto 카드가 없음 | **허브 업데이트**(`0x20000`)를 실행 |
-| 세이브가 사라짐 | 전체 설치(Erase)를 했는지 확인. 게임별 업데이트는 NVS를 건드리지 않음 |
+| Naruto 카드가 `NOT INSTALLED` | 허브에서 Naruto가 배치된 슬롯을 확인하고 **앱만 업데이트** 실행 |
+| 허브에 앱 카드가 없음 | **허브만 업데이트**(`0x20000`) 후 `SLOTS`로 태그 확인 |
+| 세이브가 사라짐 | 전체 설치(Erase)를 했는지 확인. v2 레이아웃 설치와 앱 업데이트는 NVS를 건드리지 않음 |
 | SD 스프라이트가 안 보임 | `/tamapoke/mons`, `/tamadigi/mons` 경로 확인. 게임별로 파일이 다름 |
 | 부팅 루프 | 시리얼 115200으로 로그 확인. 필요하면 `erase_flash` 후 전체 재설치 |
 
 시리얼 명령:
 
-- 허브: `1` / `2` / `3` 즉시 실행, `SLOTS` 상태 출력
+- 허브: `1`–`5` 즉시 실행, `SLOTS` 상태 출력, `R` 재스캔
+- TamaClock: `SET=YYYY-MM-DD HH:MM:SS`, `TIME=<epoch>`, `12H`, `24H`, `STATUS`
 - 게임: 업스트림 명령 유지 (`PUT`, `LS`, …)
 
 ---
@@ -390,14 +432,15 @@ hub/                  TamaHub 스케치 (factory)
 games/TamaPoke/       TamaPoke expanded v1.36.2 + 멀티부팅 패치
 games/TamaDigi/       TamaDigi v1.0.1 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
-partitions.csv        동결된 v1 파티션 테이블
+apps/TamaClock/       TamaClock v1.0.0 (RTC 시계, 어느 슬롯이든 가능)
+partitions.csv        동결된 v2 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
                       (setup_windows_toolchain.ps1: 한글 경로 우회)
-web/                  GitHub Pages 설치 페이지
+web/                  GitHub Pages 설치 페이지 (슬롯 선택 + 동적 매니페스트)
 web/sd/               웹 SD 업로더용 스프라이트 팩 (TPAK)
 docs/                 설계, 하드웨어, 패치, 업스트림 기록
 CHANGELOG.md          릴리스 노트
-.github/workflows/    CI (4개 앱 빌드 + 크기 검사 + Pages)
+.github/workflows/    CI (허브 + 3게임 + Clock 빌드 + 크기 검사 + Pages)
 ```
 
 패치 목록과 이유는 [`docs/PATCHES.md`](docs/PATCHES.md),

@@ -1,5 +1,52 @@
 # Changelog
 
+## v2.0.0 — 2026-11-09
+
+Five-slot, user-arrangeable build with a clock and quieter audio.
+
+### Added
+
+- **v2 partition layout**: `factory` + `ota_0..ota_4`, each 2 MB. NVS (`0x9000`)
+  and otadata (`0x19000`) keep their v1 offsets, so reflashing the table without
+  Erase preserves every save.
+- **User-selectable slot layout**: the installer page lets you place each app in
+  any slot. The hub no longer hardcodes offsets; it scans each image for a
+  `TAMAHUB_APP:<name>` / `TAMAHUB_VER:<version>` tag and labels the card.
+- **TamaClock v1.0.0**: RTC clock, battery/USB status, `SET=`/`TIME=`/`12H`/`24H`/
+  `STATUS` serial commands.
+- **Installer**: dynamic manifests generated from the slot picker, plus separate
+  "layout (keep saves)", "apps only", and "erase" actions.
+- **BOOT short press = Back** in every app. The 2 s hold still saves and returns
+  to TamaHub. Battles/minigames are never abandoned by a short press.
+
+### Changed
+
+- **Default volume is quieter**: TamaPoke synth master gain 45%; TamaDigi and
+  TamaNaruto default to 4/10. A one-time `volfix` migration moves the old default
+  7 → 4 and leaves any user-chosen value alone.
+- Hub is now **1.2** with five compact cards; serial commands are `1`–`5`.
+
+### Firmware
+
+| App | Version | Size | Default slot (v2) |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.36.2 | 730,960 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.0.1 | 1,667,968 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,064 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.0.0 | 435,616 B | `0x820000` (`ota_3`) |
+
+`ota_4` (`0xA20000`) is reserved for TamaNav and is empty until a data source is
+chosen.
+
+### Migration
+
+Existing v1 users: run **v2 레이아웃 설치 (세이브 유지)** in the installer.
+Do **not** erase; NVS is untouched. Manual esptool offsets are in
+[`README.md`](README.md#1-설치) and [`docs/FLASHING.md`](docs/FLASHING.md).
+
+---
+
 ## v1.1.1 — 2026-11-09
 
 ### Fixed

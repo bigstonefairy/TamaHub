@@ -32,13 +32,20 @@ SLOTS = {
     "ota_0": ("tamapoke.bin", "TamaPoke"),
     "ota_1": ("tamadigi.bin", "TamaDigi"),
     "ota_2": ("tamanaruto.bin", "TamaNaruto"),
+    "ota_3": ("tamaclock.bin", "TamaClock"),
 }
+
+# Slots that get a default assignment and a static manifest.  ota_4 is
+# reserved for TamaNav and stays empty until that app exists; the installer
+# page can still write any app there with a generated manifest.
+STATIC_SLOTS = ("factory", "ota_0", "ota_1", "ota_2", "ota_3")
 
 BUILD_BINS = {
     "factory": os.path.join("hub", "hub.ino.bin"),
     "ota_0": os.path.join("TamaPoke", "TamaPoke.ino.bin"),
     "ota_1": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
     "ota_2": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
+    "ota_3": os.path.join("TamaClock", "TamaClock.ino.bin"),
 }
 
 # Sprite packs served next to the installer for the Web Serial SD uploader.
@@ -79,6 +86,7 @@ VERSION_SOURCES = {
     "ota_0": (os.path.join("games", "TamaPoke"), "TAMAHUB_APP_VERSION"),
     "ota_1": (os.path.join("games", "TamaDigi"), "FW_VERSION"),
     "ota_2": (os.path.join("games", "TamaNaruto"), "TAMAHUB_APP_VERSION"),
+    "ota_3": (os.path.join("apps", "TamaClock"), "TAMAHUB_APP_VERSION"),
 }
 
 
@@ -160,7 +168,7 @@ def main() -> int:
         return 1
 
     # Sizes against the frozen slots.
-    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
+    for slot in STATIC_SLOTS:
         if sizes[slot] > rows[slot]["size"]:
             print(
                 f"{slot}: {sizes[slot]:,} bytes does not fit "
@@ -173,7 +181,7 @@ def main() -> int:
         {"path": copied["bootloader"], "offset": check_layout.BOOTLOADER_OFFSET},
         {"path": copied["partitions"], "offset": check_layout.PARTITION_TABLE_OFFSET},
     ]
-    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
+    for slot in STATIC_SLOTS:
         full_parts.append(
             {"path": copied[slot], "offset": rows[slot]["offset"]}
         )
@@ -186,7 +194,7 @@ def main() -> int:
 
     # Per-slot update manifests. No erase, no partition table, no bootloader:
     # NVS and the other game are untouched.
-    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
+    for slot in STATIC_SLOTS:
         write_json(
             os.path.join(args.out, f"manifest-{slot.replace('_', '')}.json"),
             manifest(
@@ -216,7 +224,7 @@ def main() -> int:
             sd_bytes += os.path.getsize(path)
 
     print(f"installer written to {args.out}")
-    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
+    for slot in STATIC_SLOTS:
         print(
             f"  {SLOTS[slot][1]:10} v{versions.get(slot, '?'):<8} "
             f"{sizes[slot]:>9,} bytes  @0x{rows[slot]['offset']:06X}"

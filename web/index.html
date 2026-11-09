@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TamaHub — Pokémon + Digimon + Naruto 멀티부팅</title>
+<title>TamaHub — Pokémon · Digimon · Naruto · Clock 멀티앱</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -65,6 +65,14 @@
     border-left: 3px solid var(--warn); background: #221a0d;
     padding: 10px 14px; border-radius: 8px; color: #ffd79a; font-size: 14px;
   }
+  details.danger {
+    margin-top: 18px; border: 1px solid #4a2a2a; border-radius: 12px;
+    background: #1d1414; padding: 12px 16px;
+  }
+  details.danger summary {
+    cursor: pointer; color: #ffb3b3; font-size: 14px; font-weight: 600;
+  }
+  details.danger[open] summary { margin-bottom: 4px; }
   .ok { color: var(--ok); }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
@@ -113,64 +121,101 @@
     background: none; border: none; color: #7fb4ff;
     text-decoration: underline; padding: 0; cursor: pointer; font-size: 13px;
   }
+
+  .slot-picker { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 4px; }
+  .slot-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 13px;
+  }
+  .slot-row .n { width: 58px; color: var(--dim); font-size: 12.5px; letter-spacing: .04em; }
+  .slot-row .letter {
+    width: 28px; height: 28px; border-radius: 999px; display: grid;
+    place-items: center; font-weight: 700; font-size: 13px;
+    background: #2a3446; color: var(--fg); flex: 0 0 auto;
+  }
+  .slot-row select {
+    flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 7px 9px;
+    border-radius: 8px; border: 1px solid var(--line);
+    background: #0d1119; color: var(--fg);
+  }
+  .slot-row .note { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <main>
   <h1><span class="poke">Tama</span><span class="digi">Hub</span></h1>
-  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto를 한 기기에, 부팅 메뉴로.</p>
+  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto, Clock을 한 기기에, 부팅 메뉴로.</p>
   <p class="versions" id="versions">버전 확인 중…</p>
 
   <section>
     <h2>설치 <span class="pill">Chrome / Edge 데스크톱</span></h2>
     <div class="warn">
-      <strong>처음 설치할 때는 칩 전체 지우기(Erase)가 필요합니다.</strong><br>
-      기존에 쓰던 세이브가 있다면 먼저 백업하세요. TamaDigi의 <code>EXPORT</code>, TamaPoke의 세이브 백업 기능을 사용하거나,
-      설치 전에 기존 펌웨어로 한 번 켜서 저장이 끝난 상태로 만들어 두세요.<br>
+      <strong>v2 레이아웃은 한 번만 설치하면 됩니다. 세이브는 지우지 않습니다.</strong><br>
+      이전 버전이 이미 설치되어 있다면 아래 <strong>v2 레이아웃 설치</strong>를 실행하세요.
+      NVS와 otadata 주소가 그대로라 Pokémon / Digimon / Naruto 세이브가 유지됩니다.
+      Erase는 <em>처음 설치</em>하거나 칩을 완전히 초기화할 때만 사용하세요.<br>
       <strong>설치 중에는 USB 케이블을 뽑지 마세요.</strong> 쓰기가 중단되면 부팅이 불가능해질 수 있습니다.
     </div>
 
+    <h3>슬롯 배치 <span class="pill">사용자 선택</span></h3>
+    <p>각 앱을 어느 슬롯에 넣을지 고르세요. 허브는 항상 <code>factory</code>에 있고,
+       앱은 이름표를 스스로 갖고 있어 <strong>순서와 종류를 바꿔도</strong> 허브가 알아서 표시합니다.</p>
+    <div class="slot-picker" id="slot-picker"></div>
+    <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
+      내비게이션은 데이터 소스가 정해지지 않아 아직 비어 있습니다. 지금은 <code>ota_4</code>를 예약 슬롯으로 두세요.
+    </p>
+
     <div class="install big">
       <div class="label">
-        <strong>전체 설치 (TamaHub + TamaPoke + TamaDigi)</strong>
-        <span>부트로더 · 파티션 테이블 · 허브 · 두 게임을 각자의 주소에 씁니다.</span>
+        <strong>v2 레이아웃 설치 (세이브 유지)</strong>
+        <span>부트로더 · v2 파티션 테이블 · 허브 · 선택한 앱을 각 슬롯에 씁니다. Erase 없음.</span>
       </div>
-      <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+      <esp-web-install-button id="btn-migrate"></esp-web-install-button>
     </div>
 
-    <h3>게임만 업데이트 (세이브 유지)</h3>
-    <p>파티션 테이블과 NVS를 건드리지 않고 해당 슬롯만 다시 씁니다.</p>
+    <h3>앱만 업데이트 (세이브 유지)</h3>
+    <p>파티션 테이블과 NVS를 건드리지 않고, 위에서 고른 앱만 각자의 슬롯에 다시 씁니다.</p>
     <div class="updates">
       <div class="install">
-        <div class="label"><strong>허브</strong><span>factory</span></div>
+        <div class="label"><strong>선택한 앱</strong><span>현재 배치 그대로</span></div>
+        <esp-web-install-button id="btn-apps"></esp-web-install-button>
+      </div>
+      <div class="install">
+        <div class="label"><strong>허브만</strong><span>factory</span></div>
         <esp-web-install-button manifest="manifest-factory.json"></esp-web-install-button>
       </div>
-      <div class="install">
-        <div class="label"><strong>Pokémon</strong><span>ota_0</span></div>
-        <esp-web-install-button manifest="manifest-ota0.json"></esp-web-install-button>
-      </div>
-      <div class="install">
-        <div class="label"><strong>Digimon</strong><span>ota_1</span></div>
-        <esp-web-install-button manifest="manifest-ota1.json"></esp-web-install-button>
-      </div>
-      <div class="install">
-        <div class="label"><strong>Naruto</strong><span>ota_2</span></div>
-        <esp-web-install-button manifest="manifest-ota2.json"></esp-web-install-button>
-      </div>
     </div>
+
+    <details class="danger">
+      <summary>처음 설치 / 칩 전체 지우기 (Erase)</summary>
+      <p style="margin:10px 0">
+        칩 전체를 지우고 v2 레이아웃을 새로 씁니다. <strong>모든 세이브가 사라집니다.</strong>
+        새 기기이거나 세이브를 버려도 될 때만 사용하세요.
+      </p>
+      <div class="install">
+        <div class="label">
+          <strong>전체 설치 (Erase)</strong>
+          <span>부트로더 · v2 파티션 테이블 · 허브 · 선택한 앱</span>
+        </div>
+        <esp-web-install-button id="btn-full"></esp-web-install-button>
+      </div>
+    </details>
   </section>
 
   <section>
     <h2>처음 켜면</h2>
     <ol>
-      <li><strong>TamaHub</strong>가 뜨고 세 개의 카드가 보입니다: Pokémon, Digimon, Extra Slot.</li>
-      <li>카드를 터치하면 해당 게임으로 재부팅합니다. 아래쪽 BOOT 버튼으로도 선택/실행할 수 있습니다.</li>
-      <li>게임을 고른 뒤에는 전원을 껐다 켜도 <strong>마지막 게임으로 바로</strong> 부팅합니다.</li>
-      <li>다른 게임으로 바꾸려면 게임 중 <strong>아래쪽 버튼을 2초 이상 누른 뒤 놓으세요.</strong></li>
+      <li><strong>TamaHub</strong>가 뜨고 위에서 배치한 앱 카드가 보입니다. 빈 슬롯은 <code>NOT INSTALLED</code>로 표시됩니다.</li>
+      <li>카드를 터치하면 해당 앱으로 재부팅합니다. 시리얼에서는 <code>1</code>–<code>5</code>로 바로 실행할 수 있습니다.</li>
+      <li>앱을 고른 뒤에는 전원을 껐다 켜도 <strong>마지막 앱으로 바로</strong> 부팅합니다.</li>
+      <li>허브로 돌아오려면 앱 안에서 <strong>BOOT 버튼을 2초 이상 누른 뒤 놓으세요.</strong>
+          짧게 누르면 앱마다 <strong>뒤로가기</strong>입니다.</li>
     </ol>
     <div class="warn">
       아래쪽 버튼은 <strong>BOOT(GPIO0)</strong>입니다. 부팅 중에 누르고 있으면 다운로드 모드로 들어가므로,
-      반드시 <em>게임이 켜진 뒤</em> 길게 누르세요. 전환은 손을 <strong>뗀 뒤</strong> 실행됩니다.
+      반드시 <em>앱이 켜진 뒤</em> 길게 누르세요. 전환은 손을 <strong>뗀 뒤</strong> 실행됩니다.
+      전투나 미니게임 중에는 짧게 눌러도 빠져나가지 않습니다.
     </div>
   </section>
 
@@ -184,12 +229,12 @@
       <strong>TamaNaruto</strong> 화면이 떠 있을 때 연결하세요.
       TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.<br>
       <strong>구버전 펌웨어</strong>는 게임 확인 명령이 없어 연결이 거부됩니다.
-      먼저 위의 <strong>Pokémon / Digimon / Naruto 업데이트</strong>를 실행하세요.
+      먼저 위의 <strong>앱만 업데이트</strong>를 실행하세요.
     </div>
     <div class="sd">
       <p class="hint">microSD는 <strong>FAT32</strong>로 포맷되어 있어야 합니다. 카드가 인식되지 않으면
          게임을 재부팅한 뒤 다시 시도하세요. 이미 예전 Digimon 빌드라면 위의
-         <strong>Digimon 업데이트</strong>를 먼저 실행하세요(중단 후 재시도 안전).</p>
+         <strong>앱만 업데이트</strong>를 먼저 실행하세요(중단 후 재시도 안전).</p>
       <div class="sd-row">
         <button id="sd-connect" class="primary">보드 연결</button>
         <button id="sd-disconnect" disabled>연결 해제</button>
@@ -251,16 +296,19 @@
     <h2>파티션 / 주소</h2>
     <table>
       <tr><th>이름</th><th>용도</th><th>주소</th><th>크기</th></tr>
-      <tr><td><code>nvs</code></td><td>두 게임 + 허브 세이브</td><td>0x9000</td><td>64 KB</td></tr>
+      <tr><td><code>nvs</code></td><td>모든 앱 + 허브 세이브</td><td>0x9000</td><td>64 KB</td></tr>
       <tr><td><code>otadata</code></td><td>다음 부팅 앱</td><td>0x19000</td><td>8 KB</td></tr>
-      <tr><td><code>factory</code></td><td>TamaHub</td><td>0x20000</td><td>3 MB</td></tr>
-      <tr><td><code>ota_0</code></td><td>TamaPoke</td><td>0x320000</td><td>3 MB</td></tr>
-      <tr><td><code>ota_1</code></td><td>TamaDigi</td><td>0x620000</td><td>3 MB</td></tr>
-      <tr><td><code>ota_2</code></td><td>추가 게임 슬롯</td><td>0x920000</td><td>3 MB</td></tr>
+      <tr><td><code>factory</code></td><td>TamaHub</td><td>0x20000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_0</code></td><td>앱 슬롯 1</td><td>0x220000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_1</code></td><td>앱 슬롯 2</td><td>0x420000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_2</code></td><td>앱 슬롯 3</td><td>0x620000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_3</code></td><td>앱 슬롯 4</td><td>0x820000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_4</code></td><td>앱 슬롯 5 (내비 예약)</td><td>0xA20000</td><td>2 MB</td></tr>
     </table>
     <p style="margin-top:12px">
       <code>boot_app0.bin</code>은 <strong>0xE000</strong>에 쓰지 않습니다. 이 주소는 64 KB NVS 내부입니다.
       설치 프로그램은 파트별 오프셋으로만 기록하며, 병합 이미지(offset 0)를 쓰지 않습니다.
+      슬롯 배치를 바꿔도 NVS가 그대로라 세이브는 유지됩니다.
     </p>
   </section>
 
@@ -269,8 +317,8 @@
     <ul>
       <li><strong>화면이 검은색</strong>: 부팅 중 BOOT를 누르고 있었는지 확인하세요. 다운로드 모드라면 USB를 다시 꽂고 이 페이지에서 재설치합니다.</li>
       <li><strong>허브로 돌아오지 않음</strong>: 아래쪽 버튼을 2초 누른 뒤 <em>완전히 떼야</em> 전환됩니다.</li>
-      <li><strong>세이브가 사라짐</strong>: 전체 설치(Erase)를 했는지 확인하세요. 게임 업데이트 버튼은 NVS를 건드리지 않습니다.</li>
-      <li><strong>시리얼 모니터</strong>: 115200 baud. 허브에서 <code>1</code>/<code>2</code>/<code>3</code>은 즉시 실행, <code>SLOTS</code>는 상태 출력입니다.</li>
+      <li><strong>세이브가 사라짐</strong>: 전체 설치(Erase)를 했는지 확인하세요. 앱 업데이트와 v2 레이아웃 설치는 NVS를 건드리지 않습니다.</li>
+      <li><strong>시리얼 모니터</strong>: 115200 baud. 허브에서 <code>1</code>–<code>5</code>는 즉시 실행, <code>SLOTS</code>는 슬롯 상태 출력입니다.</li>
     </ul>
   </section>
 
@@ -826,13 +874,170 @@
     }
   };
 
+  // ---- v2 slot picker / dynamic manifests ---------------------------------
+  //
+  // Every install button is fed a manifest generated from the current picker
+  // state.  Part paths must be absolute: the manifest itself is a blob: URL,
+  // so relative paths would resolve against blob: and fail to fetch.
+  const SLOT_NAMES = ['ota_0', 'ota_1', 'ota_2', 'ota_3', 'ota_4'];
+  const SLOT_OFFSETS = [0x220000, 0x420000, 0x620000, 0x820000, 0xA20000];
+  const BOOTLOADER_OFFSET = 0x0;
+  const PARTITION_OFFSET = 0x8000;
+  const HUB_OFFSET = 0x20000;
+
+  const APPS = [
+    { id: 'poke',   name: 'Pokémon',  letter: 'P', color: '#ff4d4d', bin: 'tamapoke.bin' },
+    { id: 'digi',   name: 'Digimon',  letter: 'D', color: '#4da3ff', bin: 'tamadigi.bin' },
+    { id: 'naruto', name: 'Naruto',   letter: 'N', color: '#b06cff', bin: 'tamanaruto.bin' },
+    { id: 'clock',  name: 'Clock',    letter: 'C', color: '#ffd23f', bin: 'tamaclock.bin' },
+    { id: 'nav',    name: '내비게이션', letter: 'M', color: '#a81fff', bin: null },
+  ];
+  const DEFAULT_LAYOUT = ['poke', 'digi', 'naruto', 'clock', ''];
+  const manifestUrls = new Map();
+
+  const appById = (id) => APPS.find((a) => a.id === id) || null;
+  const absUrl = (name) => new URL(name, location.href).href;
+
+  function currentLayout() {
+    return SLOT_NAMES.map((_, i) => {
+      const sel = document.querySelector(`#slot-picker select[data-slot="${i}"]`);
+      return sel ? sel.value : '';
+    });
+  }
+
+  function appParts(layout) {
+    const parts = [];
+    layout.forEach((id, i) => {
+      const app = appById(id);
+      if (!app || !app.bin) return;
+      parts.push({ path: absUrl(app.bin), offset: SLOT_OFFSETS[i] });
+    });
+    return parts;
+  }
+
+  function layoutManifest(layout, erase) {
+    return {
+      name: erase ? 'TamaHub v2 (erase)' : 'TamaHub v2 layout',
+      version: '2.0',
+      builds: [{
+        chipFamily: 'ESP32-S3',
+        parts: [
+          { path: absUrl('bootloader.bin'), offset: BOOTLOADER_OFFSET },
+          { path: absUrl('partitions.bin'), offset: PARTITION_OFFSET },
+          { path: absUrl('tamahub.bin'), offset: HUB_OFFSET },
+          ...appParts(layout),
+        ],
+      }],
+      new_install_prompt_erase: erase,
+    };
+  }
+
+  function appsManifest(layout) {
+    return {
+      name: 'TamaHub apps only',
+      version: '2.0',
+      builds: [{ chipFamily: 'ESP32-S3', parts: appParts(layout) }],
+      new_install_prompt_erase: false,
+    };
+  }
+
+  // ESP Web Tools reads `manifest` once, when the element is created, so a
+  // plain setAttribute() on an upgraded button would keep the old file.  Swap
+  // in a fresh element instead.
+  function setDynamicManifest(id, data) {
+    const old = $(id);
+    if (!old) return;
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const next = document.createElement('esp-web-install-button');
+    next.id = id;
+    next.setAttribute('manifest', url);
+    old.replaceWith(next);
+    manifestUrls.set(id, url);
+  }
+
+  function syncRowLetters() {
+    for (const select of document.querySelectorAll('#slot-picker select')) {
+      const row = select.closest('.slot-row');
+      const app = appById(select.value);
+      const letter = row.querySelector('.letter');
+      letter.textContent = app ? app.letter : '-';
+      letter.style.background = app ? app.color : '#2a3446';
+      letter.style.color = app ? '#0b0e14' : 'var(--fg)';
+    }
+  }
+
+  function refreshManifests() {
+    syncRowLetters();
+    const layout = currentLayout();
+    setDynamicManifest('btn-migrate', layoutManifest(layout, false));
+    setDynamicManifest('btn-full', layoutManifest(layout, true));
+    setDynamicManifest('btn-apps', appsManifest(layout));
+  }
+
+  function renderSlots(layout) {
+    const picker = $('slot-picker');
+    picker.innerHTML = '';
+    SLOT_NAMES.forEach((slot, i) => {
+      const row = document.createElement('div');
+      row.className = 'slot-row';
+
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = slot;
+
+      const letter = document.createElement('span');
+      letter.className = 'letter';
+      letter.textContent = '-';
+
+      const select = document.createElement('select');
+      select.dataset.slot = String(i);
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = '비움';
+      select.append(empty);
+      for (const app of APPS) {
+        const opt = document.createElement('option');
+        opt.value = app.id;
+        opt.textContent = app.bin ? app.name : `${app.name} (준비 중)`;
+        opt.disabled = !app.bin;
+        select.append(opt);
+      }
+      select.value = layout[i] || '';
+
+      const note = document.createElement('span');
+      note.className = 'note';
+      note.textContent = '0x' + SLOT_OFFSETS[i].toString(16).toUpperCase().padStart(6, '0');
+
+      row.append(n, letter, select, note);
+      picker.append(row);
+    });
+
+    picker.addEventListener('change', (event) => {
+      const select = event.target.closest('select');
+      if (!select) return;
+      // An app can only occupy one slot: moving it clears its old slot.
+      if (select.value) {
+        for (const other of picker.querySelectorAll('select')) {
+          if (other !== select && other.value === select.value) other.value = '';
+        }
+      }
+      refreshManifests();
+    });
+
+    refreshManifests();
+  }
+
+  renderSlots(DEFAULT_LAYOUT);
+
   async function showVersions() {
     const el = $('versions');
     const items = [
-      ['Hub', 'manifest.json'],
+      ['Hub', 'manifest-factory.json'],
       ['Pokémon', 'manifest-ota0.json'],
       ['Digimon', 'manifest-ota1.json'],
       ['Naruto', 'manifest-ota2.json'],
+      ['Clock', 'manifest-ota3.json'],
     ];
     try {
       const rows = await Promise.all(items.map(async ([label, file]) => {

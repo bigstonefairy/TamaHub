@@ -43,6 +43,10 @@
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
 #define FW_VERSION "1.0.1"
 
+// TamaHub scans the image for this tag, so the app can live in any ota slot.
+__attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:TamaDigi";
+__attribute__((used)) const char kHubAppVer[] = "TAMAHUB_VER:" FW_VERSION;
+
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
   LCD_CS, LCD_SCLK, LCD_SDIO0, LCD_SDIO1, LCD_SDIO2, LCD_SDIO3);
 Arduino_CO5300 *panel = new Arduino_CO5300(
@@ -283,6 +287,7 @@ void bootReport();
 uint8_t uiCurrentScreen();
 // The gesture model, defined next to uiCurrentScreen() but used by handleTouch()
 // ~1000 lines above it.
+void onSwipeV(int dir);   // BOOT short press reuses the down-swipe back step
 int uiTileIndex();
 void uiTileGo(int i);
 void onRim(int dir);
@@ -1053,6 +1058,7 @@ void setup() {
   // y nadie lo vacia) -> con timeout 0 los mensajes se descartan
   Serial.setTxTimeoutMs(0);
   Serial.printf("TamaDigi fw v%s\n", FW_VERSION);
+  Serial.printf("hub tag: %s %s\n", kHubAppId, kHubAppVer);  // keep tags in the image
   mboot::begin();  // lower case button (BOOT/GPIO0) opens the game menu
   bootReport();   // why the last run ended, and what it was doing
   // BEFORE anything opens the game namespace or loads a creature into RAM. A
@@ -1227,6 +1233,11 @@ void loop() {
       mboot::returnToHub();
     }
   }
+
+  // Short press = Back.  onSwipeV(1) is the canonical down-swipe gesture, so
+  // it walks exactly one screen out and is a no-op on the main screen.  The
+  // 2 s hold above still saves and returns to TamaHub.
+  if (mbHold.shortPress()) onSwipeV(1);
 
   ensureMon();
 

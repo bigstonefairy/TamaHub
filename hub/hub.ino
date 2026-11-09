@@ -1,12 +1,13 @@
-// TamaHub - boot-time game selector for the TamaPoke / TamaDigi multi-game build.
+// TamaHub - boot-time app selector for the TamaHub multi-app build.
 //
 // Board: Waveshare ESP32-S3-Touch-AMOLED-1.75 (16 MB flash / 8 MB PSRAM)
 //
-// This sketch lives in the `factory` partition.  The two games live in ota_0
-// and ota_1 (ota_2 is a spare slot).  The ESP32 bootloader boots `factory`
-// whenever otadata is empty, which is exactly the first install and every
-// return from a game.  After a game has been picked, otadata points at it and
-// the next power-on goes straight back into that game.
+// This sketch lives in the `factory` partition.  v2 gives the device five
+// equal 2 MB ota slots, and the user decides which app goes in which slot.
+// The ESP32 bootloader boots `factory` whenever otadata is empty, which is
+// exactly the first install and every return from an app.  After an app has
+// been picked, otadata points at it and the next power-on goes straight back
+// into that app.
 //
 // Launching a game:
 //   1. write `resumeAt = now` into that game's NVS namespace, so the game can
@@ -33,7 +34,7 @@
 #include <XPowersLib.h>
 
 // ---------------------------------------------------------------- versions --
-#define HUB_VERSION "1.1"
+#define HUB_VERSION "1.2"
 
 // ---------------------------------------------------------------- display ----
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
@@ -63,32 +64,62 @@ static const uint16_t C_LINE = 0x39E7;
 static const uint16_t C_POKE = 0xF800;   // red
 static const uint16_t C_DIGI = 0x04BF;   // blue
 static const uint16_t C_EXTRA = 0x07E0;  // green
+static const uint16_t C_CLOCK = 0xFFE0;  // yellow
+static const uint16_t C_NAV = 0xA81F;    // purple
 static const uint16_t C_WARN = 0xFD20;   // orange
 
 // ---------------------------------------------------------------- slots ------
 //
-// subtype / namespace / display name / letter / accent.
-// The namespace is where `resumeAt` is written before launching; leave it
-// nullptr for a slot whose game does not understand the pause protocol.
-struct Slot {
-  uint8_t subtype;
-  const char *ns;
-  const char *name;
+// Nothing here is tied to an offset.  Every image carries a
+// "TAMAHUB_APP:<name>" tag and a "TAMAHUB_VER:<version>" tag in .rodata, so
+// the hub can label whichever app the user flashed into a slot.  The
+// catalogue below only supplies the pretty name, letter and colour; apps it
+// does not know are still launchable and show their own tag.
+struct AppInfo {
+  const char *id;      // value after "TAMAHUB_APP:"
+  const char *name;    // card label
   char letter;
   uint16_t accent;
+  const char *ns;      // NVS namespace for resumeAt, or nullptr
+};
+
+static const AppInfo APP_INFO[] = {
+    {"TamaPoke", "POKEMON", 'P', C_POKE, "tamapoke"},
+    {"TamaDigi", "DIGIMON", 'D', C_DIGI, "tamadigi"},
+    {"TamaNaruto", "NARUTO", 'N', C_EXTRA, "tamanaruto"},
+    {"TamaClock", "CLOCK", 'C', C_CLOCK, nullptr},
+    {"TamaNav", "NAV", 'M', C_NAV, nullptr},
+};
+
+struct Slot {
+  uint8_t subtype;
   // runtime
   const esp_partition_t *part;
   bool valid;
+  char name[12];
+  char letter;
+  uint16_t accent;
+  const char *ns;
   char version[24];
 };
 
-static Slot slots[3] = {
-    {ESP_PARTITION_SUBTYPE_APP_OTA_0, "tamapoke", "POKEMON", 'P', C_POKE, nullptr, false, ""},
-    {ESP_PARTITION_SUBTYPE_APP_OTA_1, "tamadigi", "DIGIMON", 'D', C_DIGI, nullptr, false, ""},
-    {ESP_PARTITION_SUBTYPE_APP_OTA_2, "tamanaruto", "NARUTO", 'N', C_EXTRA, nullptr, false, ""},
+static Slot slots[5] = {
+    {ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr, false, "EMPTY", '-', C_LINE, nullptr, ""},
+    {ESP_PARTITION_SUBTYPE_APP_OTA_1, nullptr, false, "EMPTY", '-', C_LINE, nullptr, ""},
+    {ESP_PARTITION_SUBTYPE_APP_OTA_2, nullptr, false, "EMPTY", '-', C_LINE, nullptr, ""},
+    {ESP_PARTITION_SUBTYPE_APP_OTA_3, nullptr, false, "EMPTY", '-', C_LINE, nullptr, ""},
+    {ESP_PARTITION_SUBTYPE_APP_OTA_4, nullptr, false, "EMPTY", '-', C_LINE, nullptr, ""},
 };
-static const int SLOT_COUNT = 3;
+static const int SLOT_COUNT = 5;
 static int selected = 0;
+
+// Card geometry shared by draw() and the touch hit test.
+static const int16_t CARD_X = 53;
+static const int16_t CARD_W = 360;
+static const int16_t CARD_H = 52;
+static const int16_t CARD_Y0 = 86;
+static const int16_t CARD_GAP = 6;
+static int16_t cardY(int i) { return CARD_Y0 + i * (CARD_H + CARD_GAP); }
 
 // ---------------------------------------------------------------- state ------
 static bool dirty = true;
@@ -156,6 +187,57 @@ static void readBattery() {
   if (batteryPct < 0 && !batteryUsb) batteryPct = -1;
 }
 
+// Find `tag` in the first part of an app image and copy the NUL-terminated
+// text after it.  Reading a few KB at a time keeps this off the heap; the
+// overlap keeps a tag that straddles a chunk boundary.
+static bool readTag(const esp_partition_t *part, const char *tag, char *out,
+                    size_t outLen) {
+  if (!part || !out || outLen == 0) return false;
+  out[0] = 0;
+  const size_t tagLen = strlen(tag);
+  if (tagLen == 0) return false;
+
+  static uint8_t buf[4096 + 64];
+  const size_t chunk = 4096;
+  size_t carry = 0;
+  size_t limit = part->size;
+  if (limit > 256 * 1024) limit = 256 * 1024;
+
+  for (size_t off = 0; off < limit; off += chunk) {
+    size_t n = limit - off;
+    if (n > chunk) n = chunk;
+    if (esp_partition_read(part, off, buf + carry, n) != ESP_OK) return false;
+    const size_t total = carry + n;
+
+    for (size_t i = 0; i + tagLen < total; i++) {
+      if (memcmp(buf + i, tag, tagLen) != 0) continue;
+      size_t src = i + tagLen;
+      size_t dst = 0;
+      while (src < total && dst + 1 < outLen) {
+        const char c = (char)buf[src++];
+        if (c == 0) break;
+        out[dst++] = c;
+      }
+      out[dst] = 0;
+      return dst > 0;
+    }
+
+    carry = total >= tagLen ? tagLen : total;
+    memmove(buf, buf + total - carry, carry);
+  }
+  return false;
+}
+
+// Returns an index, not a pointer: the Arduino preprocessor emits a prototype
+// for this function above the AppInfo definition, so the return type must not
+// name a type that is declared later in the sketch.
+static int findApp(const char *id) {
+  for (size_t i = 0; i < sizeof(APP_INFO) / sizeof(APP_INFO[0]); i++) {
+    if (strcmp(APP_INFO[i].id, id) == 0) return (int)i;
+  }
+  return -1;
+}
+
 static void scanSlots() {
   for (int i = 0; i < SLOT_COUNT; i++) {
     Slot &s = slots[i];
@@ -163,19 +245,56 @@ static void scanSlots() {
         ESP_PARTITION_TYPE_APP, (esp_partition_subtype_t)s.subtype, nullptr);
     s.valid = false;
     s.version[0] = 0;
+    strcpy(s.name, "EMPTY");
+    s.letter = '-';
+    s.accent = C_LINE;
+    s.ns = nullptr;
     if (!s.part) continue;
 
-    esp_app_desc_t desc;
-    if (esp_ota_get_partition_description(s.part, &desc) == ESP_OK) {
-      s.valid = true;
-      snprintf(s.version, sizeof(s.version), "%s", desc.version);
-    } else {
+    esp_app_desc_t desc = {};
+    bool hasDesc = (esp_ota_get_partition_description(s.part, &desc) == ESP_OK);
+    bool bootable = hasDesc;
+    if (!bootable) {
       // Fall back to the image magic byte: useful when the app is valid but
       // its description cannot be parsed.
       uint8_t magic = 0;
       if (esp_partition_read(s.part, 0, &magic, 1) == ESP_OK && magic == 0xE9) {
-        s.valid = true;
+        bootable = true;
       }
+    }
+    if (!bootable) continue;
+    s.valid = true;
+
+    char id[24] = "";
+    if (readTag(s.part, "TAMAHUB_APP:", id, sizeof(id))) {
+      const int ai = findApp(id);
+      if (ai >= 0) {
+        const AppInfo &info = APP_INFO[ai];
+        snprintf(s.name, sizeof(s.name), "%s", info.name);
+        s.letter = info.letter;
+        s.accent = info.accent;
+        s.ns = info.ns;
+      } else {
+        snprintf(s.name, sizeof(s.name), "%s", id);
+        char c = id[0];
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        s.letter = c ? c : '?';
+        s.accent = C_EXTRA;
+      }
+    } else {
+      // An app built before the tag existed is still launchable.
+      snprintf(s.name, sizeof(s.name), "%s", "APP");
+      s.letter = '?';
+      s.accent = C_LINE;
+    }
+
+    char ver[24] = "";
+    if (readTag(s.part, "TAMAHUB_VER:", ver, sizeof(ver))) {
+      snprintf(s.version, sizeof(s.version), "%s", ver);
+    } else if (hasDesc && desc.version[0] && strchr(desc.version, '.')) {
+      // This core fills the description with a build hash; only accept
+      // something that looks like a real version.
+      snprintf(s.version, sizeof(s.version), "%s", desc.version);
     }
   }
 }
@@ -205,39 +324,40 @@ static void printSlots() {
 // ---------------------------------------------------------------- drawing ----
 static void drawCard(int i, int16_t y) {
   Slot &s = slots[i];
-  const int16_t x = 53, w = 360, h = 98;
+  const int16_t cy = y + CARD_H / 2;
   uint16_t accent = s.accent;
 
-  gfx->fillRoundRect(x, y, w, h, 16, C_CARD);
-  gfx->drawRoundRect(x, y, w, h, 16, (i == selected) ? accent : C_LINE);
+  gfx->fillRoundRect(CARD_X, y, CARD_W, CARD_H, 14, C_CARD);
+  gfx->drawRoundRect(CARD_X, y, CARD_W, CARD_H, 14,
+                     (i == selected) ? accent : C_LINE);
   if (i == selected) {
-    gfx->drawRoundRect(x + 2, y + 2, w - 4, h - 4, 14, accent);
+    gfx->drawRoundRect(CARD_X + 2, y + 2, CARD_W - 4, CARD_H - 4, 12, accent);
   }
 
   // icon badge
-  gfx->fillCircle(x + 40, y + h / 2, 24, s.valid ? accent : C_LINE);
+  gfx->fillCircle(CARD_X + 26, cy, 17, s.valid ? accent : C_LINE);
   char letter[2] = {s.letter, 0};
-  text(letter, x + 40 - 6 * 3, y + h / 2 - 8 * 3, 3, 0x0000);
+  text(letter, CARD_X + 26 - 6, cy - 8, 2, 0x0000);
 
   // name
-  text(s.name, x + 76, y + 16, 3, s.valid ? C_FG : C_DIM);
+  text(s.name, CARD_X + 50, y + 7, 2, s.valid ? C_FG : C_DIM);
 
   // state / version
   char st[40];
   if (!s.valid) {
     snprintf(st, sizeof(st), "NOT INSTALLED");
   } else if (s.version[0] && strchr(s.version, '.')) {
-    // The ESP-IDF description carries a build hash on this toolchain; only
-    // show something that looks like a real version.
     snprintf(st, sizeof(st), "READY  v%s", s.version);
+  } else if (s.version[0]) {
+    snprintf(st, sizeof(st), "READY  %s", s.version);
   } else {
     snprintf(st, sizeof(st), "READY");
   }
-  text(st, x + 76, y + 52, 2, s.valid ? C_DIM : C_LINE);
+  text(st, CARD_X + 50, y + 29, 1, s.valid ? C_DIM : C_LINE);
 
   // selected marker
   if (i == selected) {
-    text(">", x + w - 24, y + 34, 3, accent);
+    text(">", CARD_X + CARD_W - 20, y + 18, 2, accent);
   }
 }
 
@@ -268,11 +388,9 @@ static void draw() {
   // Keep the title inside the round panel's top chord: size 3 at y=40 is
   // 234 px wide, while the usable chord there is ~261 px.
   textCenterFit("TAMA HUB v" HUB_VERSION, 40, 3, C_FG, 300);
-  textCenter("choose a game", 70, 2, C_DIM);
+  textCenter("choose an app", 68, 2, C_DIM);
 
-  drawCard(0, 92);
-  drawCard(1, 198);
-  drawCard(2, 304);
+  for (int i = 0; i < SLOT_COUNT; i++) drawCard(i, cardY(i));
 
   drawFooter();
   gfx->flush();
@@ -387,11 +505,10 @@ static void pollTouch() {
   // Released. A tap is a release near the press point; the card hit test uses
   // the position where the finger was last seen.
   if (abs(touchXl - touchX0) >= 40 || abs(touchYl - touchY0) >= 40) return;
-  const int16_t cardX = 53, cardW = 360, cardH = 98;
-  if (touchXl < cardX || touchXl > cardX + cardW) return;
-  const int16_t ys[3] = {92, 198, 304};
+  if (touchXl < CARD_X || touchXl > CARD_X + CARD_W) return;
   for (int i = 0; i < SLOT_COUNT; i++) {
-    if (touchYl >= ys[i] && touchYl <= ys[i] + cardH) {
+    const int16_t y = cardY(i);
+    if (touchYl >= y && touchYl <= y + CARD_H) {
       selected = i;
       dirty = true;
       draw();
@@ -402,18 +519,14 @@ static void pollTouch() {
 }
 
 static void handleCommand(const String &c) {
-  if (c == "1") {
-    launch(0);
-  } else if (c == "2") {
-    launch(1);
-  } else if (c == "3") {
-    launch(2);
+  if (c.length() == 1 && c[0] >= '1' && c[0] < '1' + SLOT_COUNT) {
+    launch(c[0] - '1');
   } else if (c == "R" || c == "r" || c == "SLOTS") {
     scanSlots();
     printSlots();
     dirty = true;
   } else if (c.length()) {
-    Serial.println("commands: 1 2 3 | SLOTS | R");
+    Serial.printf("commands: 1-%d | SLOTS | R\n", SLOT_COUNT);
   }
 }
 

@@ -53,6 +53,12 @@
 #else
 #define FW_VERSION "1.35.3-soft-step"
 #endif
+
+// TamaHub scans the image for this tag, so the app can live in any ota slot.
+// Keep the string in .rodata and mark it used: nothing else references it.
+__attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:TamaPoke";
+__attribute__((used)) const char kHubAppVer[] = "TAMAHUB_VER:" TAMAHUB_APP_VERSION;
+
 #define HELP_PAGE_COUNT 8
 #define HELP_LINE_COUNT 6
 
@@ -360,6 +366,8 @@ bool staticScreenClean() {
   return false;
 }
 
+void physicalBack();   // BOOT short press
+
 void setup() {
   Serial.setRxBufferSize(8192);  // la transferencia a SD llega en bloques de 2 KB
   Serial.begin(115200);
@@ -368,6 +376,7 @@ void setup() {
   // y nadie lo vacia) -> con timeout 0 los mensajes se descartan
   Serial.setTxTimeoutMs(0);
   Serial.printf("TamaPoke fw v%s\n", FW_VERSION);
+  Serial.printf("hub tag: %s %s\n", kHubAppId, kHubAppVer);  // keep tags in the image
   mboot::begin();  // lower case button (BOOT/GPIO0) opens the game menu
   loadLang();  // idioma guardado (ES por defecto)
   Wire.begin(IIC_SDA, IIC_SCL);
@@ -560,6 +569,9 @@ void loop() {
       mboot::returnToHub();
     }
   }
+
+  // Short press = Back.  The 2 s hold above still saves and returns to TamaHub.
+  if (mbHold.shortPress()) physicalBack();
 
   ensureMon();
   setPowerCacheInterval(powerSave ? 10000UL : 2000UL);
@@ -1130,6 +1142,64 @@ void onSwipeV(int dir) {
     lockTouchBrief();
     sfxPlay(SFX_MENU);
   }
+}
+
+// BOOT short press.  Unlike onSwipeV(1) this must not open the clock on the
+// main screen, and it must never abandon a battle or a minigame -- losing a
+// fight to a button that is supposed to mean "back" would be worse than the
+// button doing nothing.  So it only unwinds the overlays that are pure UI.
+void physicalBack() {
+  if (kbOpen) {                    // cancel rename, keep the old nickname
+    kbOpen = false;
+    cardDirty = true;
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  if (helpOpen) {                  // help was opened from the clock screen
+    helpOpen = false;
+    clockOpen = true;
+    clockDirty = true;
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  if (clockOpen) {
+    clockOpen = false;
+    markUiDirty();
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  if (galleryOpen) {
+    if (galleryDetail) {
+      galleryDetail = 0;
+      galleryPmd.unload();
+    } else {
+      galleryOpen = false;
+      galleryPmd.unload();
+    }
+    galleryDirty = true;
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  if (gameMenuOpen) {
+    gameMenuOpen = false;
+    markUiDirty();
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  if (cardOpen) {
+    cardOpen = false;
+    expeditionTrainChoiceOpen = false;
+    markUiDirty();
+    lockTouchBrief();
+    sfxPlay(SFX_TAP);
+    return;
+  }
+  // battleOpen, gameOpen, sackOpen, ceremonies and the main screen: no-op.
 }
 
 // deslizar: dir +1 = hacia la derecha

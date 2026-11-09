@@ -316,10 +316,18 @@ void audioBegin() {
   if (!es8311Init()) { Serial.println("ES8311 no responde (audio off)"); return; }
 
   Preferences p;
-  p.begin("tamadigi", true);
+  p.begin("tamadigi", false);   // read-write: may migrate the old default once
   gOn = p.getBool("snd", true);
-  gVol = p.getUChar("vol", 7);
-  if (gVol > 10) gVol = 7;
+  gVol = p.getUChar("vol", 4);
+  if (gVol > 10) gVol = 4;
+  // Early builds defaulted to 7/10, which is louder than this small speaker
+  // should run.  Move that old default to 4 once; a volume the player chose
+  // (anything other than 7) is left alone.
+  if (!p.getBool("volfix", false)) {
+    if (gVol == 7) gVol = 4;
+    p.putUChar("vol", gVol);
+    p.putBool("volfix", true);
+  }
   p.end();
 
   gReady = true;

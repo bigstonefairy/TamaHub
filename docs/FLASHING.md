@@ -48,11 +48,19 @@ GitHub Pages를 만든 뒤에는 `https://<사용자>.github.io/<저장소>/` �
 
 1. Arduino IDE, 시리얼 모니터, PuTTY 등 **COM 포트를 잡고 있는 프로그램을 모두 닫습니다.**
 2. 보드를 USB로 연결합니다.
-3. 페이지에서 **전체 설치** 버튼을 누릅니다.
-4. 시리얼 포트를 선택합니다.
-5. **Erase**를 선택합니다. (첫 설치 필수 — 기존 파티션/세이브가 지워집니다)
-6. 설치가 끝날 때까지 **USB를 뽑지 않습니다.**
-7. 자동 재부팅 후 **TamaHub** 화면이 뜨면 성공입니다.
+3. **슬롯 배치**에서 앱을 원하는 순서로 고릅니다. 기본값은
+   `ota_0` Poke / `ota_1` Digi / `ota_2` Naruto / `ota_3` Clock / `ota_4` 비움.
+4. 기존 사용자는 **v2 레이아웃 설치 (세이브 유지)** 를 누릅니다.
+   v2 파티션 테이블과 허브를 쓰되 **Erase를 하지 않아 NVS 세이브가 유지**됩니다.
+5. 새 기기이거나 세이브를 버려도 될 때만 **처음 설치 / 칩 전체 지우기 (Erase)** 를 엽니다.
+6. 시리얼 포트를 선택하고 설치가 끝날 때까지 **USB를 뽑지 않습니다.**
+7. 자동 재부팅 후 **TamaHub** 화면에 선택한 앱 카드가 뜨면 성공입니다.
+
+> **v1 → v2 마이그레이션**
+> v1은 `factory` 3MB + `ota_0..ota_2` 3MB였고, v2는 `factory`/`ota_0..ota_4` 각 2MB입니다.
+> NVS(`0x9000`)와 otadata(`0x19000`) 주소는 그대로라 **Erase 없이** 파티션 테이블만
+> 다시 쓰면 세이브가 유지됩니다. 앱 오프셋은 바뀌므로 모든 앱을 한 번 다시 쓰세요.
+> 설치 페이지의 **v2 레이아웃 설치**가 이 작업을 한 번에 수행합니다.
 
 ### 1-3. 포트가 안 보이거나 연결 실패 시
 
@@ -87,7 +95,7 @@ $esp = Get-ChildItem "$env:LOCALAPPDATA\Arduino15\packages\esp32\tools\esptool_p
 
 `COM5`는 실제 포트로 바꾸세요. 이 단계에서 **모든 세이브가 지워집니다.**
 
-### 2-2. 5개 이미지 쓰기
+### 2-2. 6개 이미지 쓰기
 
 ```powershell
 & $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
@@ -95,44 +103,53 @@ $esp = Get-ChildItem "$env:LOCALAPPDATA\Arduino15\packages\esp32\tools\esptool_p
   0x0      build\hub\hub.ino.bootloader.bin `
   0x8000   build\hub\hub.ino.partitions.bin `
   0x20000  build\hub\hub.ino.bin `
-  0x320000 build\TamaPoke\TamaPoke.ino.bin `
-  0x620000 build\TamaDigi\TamaDigi.ino.bin `
-  0x920000 build\TamaNaruto\TamaNaruto.ino.bin
+  0x220000 build\TamaPoke\TamaPoke.ino.bin `
+  0x420000 build\TamaDigi\TamaDigi.ino.bin `
+  0x620000 build\TamaNaruto\TamaNaruto.ino.bin `
+  0x820000 build\TamaClock\TamaClock.ino.bin
 ```
 
 연결이 불안정하면 `--baud 921600`을 `--baud 115200`으로 낮춥니다.
 
-### 2-3. 게임만 업데이트
+### 2-3. 앱만 업데이트
 
-NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
+NVS와 다른 슬롯은 건드리지 않고 해당 앱만 다시 씁니다. 아래는 기본 배치 기준입니다.
+설치 페이지에서 순서를 바꿨다면 그 슬롯 주소를 사용하세요.
 
 ```powershell
 # TamaPoke만
 & $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
   --flash-mode dio --flash-freq 80m --flash-size 16MB `
-  0x320000 build\TamaPoke\TamaPoke.ino.bin
+  0x220000 build\TamaPoke\TamaPoke.ino.bin
 
 # TamaDigi만
 & $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
   --flash-mode dio --flash-freq 80m --flash-size 16MB `
-  0x620000 build\TamaDigi\TamaDigi.ino.bin
+  0x420000 build\TamaDigi\TamaDigi.ino.bin
 
 # TamaNaruto만
 & $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
   --flash-mode dio --flash-freq 80m --flash-size 16MB `
-  0x920000 build\TamaNaruto\TamaNaruto.ino.bin
+  0x620000 build\TamaNaruto\TamaNaruto.ino.bin
+
+# TamaClock만
+& $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
+  --flash-mode dio --flash-freq 80m --flash-size 16MB `
+  0x820000 build\TamaClock\TamaClock.ino.bin
 ```
 
-### 2-4. 전체 주소표
+### 2-4. 전체 주소표 (v2)
 
 | 파트 | 주소 | 파일 |
 |---|---|---|
 | bootloader | `0x0` | `build\hub\hub.ino.bootloader.bin` |
 | partition table | `0x8000` | `build\hub\hub.ino.partitions.bin` |
 | TamaHub | `0x20000` | `build\hub\hub.ino.bin` |
-| TamaPoke | `0x320000` | `build\TamaPoke\TamaPoke.ino.bin` |
-| TamaDigi | `0x620000` | `build\TamaDigi\TamaDigi.ino.bin` |
-| TamaNaruto | `0x920000` | `build\TamaNaruto\TamaNaruto.ino.bin` |
+| 슬롯 1 (`ota_0`) | `0x220000` | `build\TamaPoke\TamaPoke.ino.bin` |
+| 슬롯 2 (`ota_1`) | `0x420000` | `build\TamaDigi\TamaDigi.ino.bin` |
+| 슬롯 3 (`ota_2`) | `0x620000` | `build\TamaNaruto\TamaNaruto.ino.bin` |
+| 슬롯 4 (`ota_3`) | `0x820000` | `build\TamaClock\TamaClock.ino.bin` |
+| 슬롯 5 (`ota_4`) | `0xA20000` | (비움 / 내비 예약) |
 
 **절대 쓰지 않는 것**
 
@@ -145,16 +162,17 @@ NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
 ## 3. 첫 부팅
 
 1. USB를 뽑았다가 다시 연결합니다. **BOOT를 누르지 마세요.**
-2. TamaHub가 뜨고 카드 3개가 보입니다.
-   - `POKEMON` / `DIGIMON`은 `READY`
-   - `EXTRA SLOT`은 `NOT INSTALLED`
-3. 카드를 터치하면 해당 게임으로 재부팅합니다.
-4. 한 번 게임을 고른 뒤에는 전원을 껐다 켜도 **마지막 게임으로 바로** 부팅합니다.
-5. 다른 게임으로 바꾸려면 게임 중 **아래쪽 BOOT를 2초 이상 누른 뒤 손을 뗍니다.**
+2. TamaHub가 뜨고 선택한 슬롯 수만큼 카드가 보입니다(최대 5개).
+   - 설치한 앱은 `READY v<버전>`
+   - 빈 슬롯은 `NOT INSTALLED`
+3. 카드를 터치하면 해당 앱으로 재부팅합니다. 시리얼에서는 `1`–`5`.
+4. 한 번 앱을 고른 뒤에는 전원을 껐다 켜도 **마지막 앱으로 바로** 부팅합니다.
+5. 허브로 돌아오려면 앱 중 **아래쪽 BOOT를 2초 이상 누른 뒤 손을 뗍니다.**
    - `SAVING` → `SAVED / release the button` → 허브
+6. **BOOT을 짧게 누르면 뒤로가기**입니다. 전투/미니게임은 빠져나가지 않습니다.
 
 부팅 중 BOOT를 누르고 있으면 ROM 다운로드 모드로 들어가므로, 전환은 항상
-게임이 뜬 뒤에 하세요.
+앱이 뜬 뒤에 하세요.
 
 ---
 

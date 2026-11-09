@@ -223,6 +223,10 @@ static int16_t oscSample(uint8_t wave, int phase, int period, int16_t amp) {
   return (p < period / 2) ? amp : -amp;
 }
 
+// The shipped mix was loud enough to be startling at arm's length.  Scale the
+// whole synth down; SOUND_LOW/MED/FULL keep their levels relative to each other.
+static constexpr int32_t kMasterGainPct = 45;
+
 static uint8_t modeGainPct() {
   switch (gMode) {
     case SOUND_LOW: return 58;
@@ -243,7 +247,8 @@ static void playTone(const Note &note) {
   int total = SAMPLE_RATE * ms / 1000;
   int done = 0;
   int phase = 0;
-  const int16_t maxAmp = (int16_t)(9200L * note.vol * modeGainPct() / 10000);
+  const int32_t fullAmp = 9200L * note.vol * modeGainPct() / 10000;
+  const int16_t maxAmp = (int16_t)(fullAmp * kMasterGainPct / 100);
   while (done < total) {
     int n = total - done; if (n > 256) n = 256;
     for (int i = 0; i < n; i++) {

@@ -128,14 +128,14 @@ git push
 
 - GitHub Actions가 자동으로 네 앱을 빌드하고 파티션/크기/설치 오프셋을 검사합니다.
 - 성공하면 Pages의 설치 페이지가 새 빌드로 갱신됩니다.
-- 기기에서는 **게임별 업데이트** 버튼으로 해당 슬롯만 다시 쓰면 세이브가 유지됩니다.
+- 기기에서는 **앱만 업데이트** 버튼으로 선택한 슬롯만 다시 쓰면 세이브가 유지됩니다.
 
 ### CI가 하는 검사
 
-- `tools/check_layout.py` — v1 파티션 표와 앱 크기
+- `tools/check_layout.py` — v2 파티션 표와 앱 크기
 - `tools/check_installer.py` — 매니페스트가 NVS(`0x9000..0x18FFF`) 또는
   `0xE000`을 건드리면 실패
-- 네 앱 컴파일 (Hub/Poke/Digi/Naruto)
+- 다섯 앱 컴파일 (Hub/Poke/Digi/Naruto/Clock)
 
 ---
 

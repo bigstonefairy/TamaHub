@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check that the generated ESP Web Tools manifests only touch safe offsets.
 
-A merged image flashed at offset 0 would overwrite NVS and destroy both games'
-saves, and `boot_app0.bin` lives at 0xE000 inside the 64 KB NVS partition.  This
+A merged image flashed at offset 0 would overwrite NVS and destroy every save,
+and `boot_app0.bin` lives at 0xE000 inside the 64 KB NVS partition.  This
 script fails the build if either happens, and also verifies that every app part
 matches the frozen partition table.
 """
@@ -34,6 +34,7 @@ APP_OFFSETS = {
     "tamapoke.bin": ("ota_0", _LAYOUT["ota_0"]["offset"]),
     "tamadigi.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
     "tamanaruto.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
+    "tamaclock.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
 }
 
 REQUIRED_FILES = (
@@ -42,6 +43,7 @@ REQUIRED_FILES = (
     "manifest-ota0.json",
     "manifest-ota1.json",
     "manifest-ota2.json",
+    "manifest-ota3.json",
     "index.html",
     "bootloader.bin",
     "partitions.bin",
@@ -49,6 +51,7 @@ REQUIRED_FILES = (
     "tamapoke.bin",
     "tamadigi.bin",
     "tamanaruto.bin",
+    "tamaclock.bin",
 )
 
 # Sprite bundles used by the Web Serial uploader, relative to web/dist.

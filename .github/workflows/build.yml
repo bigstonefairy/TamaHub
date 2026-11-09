@@ -85,13 +85,20 @@ jobs:
             --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB" \
             --build-path build/TamaNaruto games/TamaNaruto
 
+      - name: Build TamaClock
+        run: |
+          arduino-cli compile \
+            --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB" \
+            --build-path build/TamaClock apps/TamaClock
+
       - name: Check app sizes against the slots
         run: |
           python tools/check_layout.py \
             --bin factory=build/hub/hub.ino.bin \
             --bin ota_0=build/TamaPoke/TamaPoke.ino.bin \
             --bin ota_1=build/TamaDigi/TamaDigi.ino.bin \
-            --bin ota_2=build/TamaNaruto/TamaNaruto.ino.bin
+            --bin ota_2=build/TamaNaruto/TamaNaruto.ino.bin \
+            --bin ota_3=build/TamaClock/TamaClock.ino.bin
 
       - name: Build the web installer
         run: python tools/make_installer.py
