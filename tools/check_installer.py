@@ -33,6 +33,7 @@ APP_OFFSETS = {
     "tamahub.bin": ("factory", _LAYOUT["factory"]["offset"]),
     "tamapoke.bin": ("ota_0", _LAYOUT["ota_0"]["offset"]),
     "tamadigi.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
+    "tamanaruto.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
 }
 
 REQUIRED_FILES = (
@@ -40,22 +41,29 @@ REQUIRED_FILES = (
     "manifest-factory.json",
     "manifest-ota0.json",
     "manifest-ota1.json",
+    "manifest-ota2.json",
     "index.html",
     "bootloader.bin",
     "partitions.bin",
     "tamahub.bin",
     "tamapoke.bin",
     "tamadigi.bin",
+    "tamanaruto.bin",
 )
 
 # Sprite bundles used by the Web Serial uploader, relative to web/dist.
 SD_ASSETS = (
     "sd/tamapoke/sprites.pak",
+    "sd/tamapoke/sprites-gen3-update.pak",
     "sd/tamadigi/sprites-ver1.pak",
     "sd/tamadigi/sprites-ver2.pak",
     "sd/tamadigi/sprites-ver3.pak",
     "sd/tamadigi/sprites-ver4.pak",
     "sd/tamadigi/sprites-ver5.pak",
+    "sd/tamaruto/sprites-konoha.pak",
+    "sd/tamaruto/sprites-suna.pak",
+    "sd/tamaruto/sprites-kiri.pak",
+    "sd/tamaruto/sprites-oto.pak",
 )
 
 
@@ -74,7 +82,7 @@ def main() -> int:
         if not os.path.isfile(path):
             errors.append(f"missing sprite pack {rel}")
             continue
-        if os.path.getsize(path) < 1024 * 1024:
+        if os.path.getsize(path) < 128 * 1024:
             errors.append(f"{rel} is unexpectedly small")
             continue
         with open(path, "rb") as f:

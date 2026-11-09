@@ -31,23 +31,30 @@ SLOTS = {
     "factory": ("tamahub.bin", "TamaHub"),
     "ota_0": ("tamapoke.bin", "TamaPoke"),
     "ota_1": ("tamadigi.bin", "TamaDigi"),
+    "ota_2": ("tamanaruto.bin", "TamaNaruto"),
 }
 
 BUILD_BINS = {
     "factory": os.path.join("hub", "hub.ino.bin"),
     "ota_0": os.path.join("TamaPoke", "TamaPoke.ino.bin"),
     "ota_1": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
+    "ota_2": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
 }
 
 # Sprite packs served next to the installer for the Web Serial SD uploader.
 # They are the upstream bundles, copied into the repository under web/sd/.
 SD_ASSETS = [
     os.path.join("tamapoke", "sprites.pak"),
+    os.path.join("tamapoke", "sprites-gen3-update.pak"),
     os.path.join("tamadigi", "sprites-ver1.pak"),
     os.path.join("tamadigi", "sprites-ver2.pak"),
     os.path.join("tamadigi", "sprites-ver3.pak"),
     os.path.join("tamadigi", "sprites-ver4.pak"),
     os.path.join("tamadigi", "sprites-ver5.pak"),
+    os.path.join("tamaruto", "sprites-konoha.pak"),
+    os.path.join("tamaruto", "sprites-suna.pak"),
+    os.path.join("tamaruto", "sprites-kiri.pak"),
+    os.path.join("tamaruto", "sprites-oto.pak"),
 ]
 
 
@@ -69,8 +76,9 @@ def app_version(path: str) -> str:
 # instead.
 VERSION_SOURCES = {
     "factory": ("hub", "HUB_VERSION"),
-    "ota_0": (os.path.join("games", "TamaPoke"), "FW_VERSION"),
+    "ota_0": (os.path.join("games", "TamaPoke"), "TAMAHUB_APP_VERSION"),
     "ota_1": (os.path.join("games", "TamaDigi"), "FW_VERSION"),
+    "ota_2": (os.path.join("games", "TamaNaruto"), "TAMAHUB_APP_VERSION"),
 }
 
 
@@ -152,7 +160,7 @@ def main() -> int:
         return 1
 
     # Sizes against the frozen slots.
-    for slot in ("factory", "ota_0", "ota_1"):
+    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
         if sizes[slot] > rows[slot]["size"]:
             print(
                 f"{slot}: {sizes[slot]:,} bytes does not fit "
@@ -165,7 +173,7 @@ def main() -> int:
         {"path": copied["bootloader"], "offset": check_layout.BOOTLOADER_OFFSET},
         {"path": copied["partitions"], "offset": check_layout.PARTITION_TABLE_OFFSET},
     ]
-    for slot in ("factory", "ota_0", "ota_1"):
+    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
         full_parts.append(
             {"path": copied[slot], "offset": rows[slot]["offset"]}
         )
@@ -178,7 +186,7 @@ def main() -> int:
 
     # Per-slot update manifests. No erase, no partition table, no bootloader:
     # NVS and the other game are untouched.
-    for slot in ("factory", "ota_0", "ota_1"):
+    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
         write_json(
             os.path.join(args.out, f"manifest-{slot.replace('_', '')}.json"),
             manifest(
@@ -208,7 +216,7 @@ def main() -> int:
             sd_bytes += os.path.getsize(path)
 
     print(f"installer written to {args.out}")
-    for slot in ("factory", "ota_0", "ota_1"):
+    for slot in ("factory", "ota_0", "ota_1", "ota_2"):
         print(
             f"  {SLOTS[slot][1]:10} v{versions.get(slot, '?'):<8} "
             f"{sizes[slot]:>9,} bytes  @0x{rows[slot]['offset']:06X}"

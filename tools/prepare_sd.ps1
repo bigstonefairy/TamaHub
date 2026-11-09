@@ -1,25 +1,25 @@
 <#
 .SYNOPSIS
-    Copy the upstream sprite packs onto a microSD card under the new
-    per-game roots (/tamapoke/mons, /tamadigi/mons).
+    Copy the upstream sprite packs onto a microSD card under the per-game roots
+    (/tamapoke/mons, /tamadigi/mons, /tamaruto/mons).
 
 .DESCRIPTION
-    TamaPoke: copies _repos\TamaPoke-main\tools\sdcard\mons.
-    TamaDigi: looks for a ready mons folder; if there is none, prints how to
-              unpack the version packs with the upstream tools.
+    TamaPoke: copies _repos\TamaPoke-expanded\tools\sdcard\mons.
+    TamaDigi: unpacks web/sprites-ver*.pak into tools\sdcard\mons.
+    TamaNaruto: unpacks web/sprites-<village>.pak into tools\sdcard\mons.
 
 .EXAMPLE
     .\tools\prepare_sd.ps1 -Drive E:\ -Game pokemon
-    .\tools\prepare_sd.ps1 -Drive E:\ -Game both
+    .\tools\prepare_sd.ps1 -Drive E:\ -Game all
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string]$Drive,
 
-    [ValidateSet("pokemon", "digimon", "both")]
-    [string]$Game = "both",
+    [ValidateSet("pokemon", "digimon", "naruto", "both", "all")]
+    [string]$Game = "all",
 
-    # Optional: folder containing the upstream checkouts (TamaPoke-main, TamaDigi-main).
+    # Optional: folder containing the upstream checkouts.
     [string]$RepoRoot = ""
 )
 
@@ -41,13 +41,13 @@ function Copy-Mons([string]$source, [string]$dest) {
     return $true
 }
 
-$pokeSrc = Join-Path $RepoRoot "TamaPoke-main\tools\sdcard\mons"
-$digiRepo = Join-Path $RepoRoot "TamaDigi-main"
-$digiCandidates = @(
-    (Join-Path $digiRepo "tools\sdcard\mons"),
-    (Join-Path $digiRepo "assets\mons"),
-    (Join-Path $Root "assets\digimon\mons")
+$pokeCandidates = @(
+    (Join-Path $RepoRoot "TamaPoke-expanded\tools\sdcard\mons"),
+    (Join-Path $RepoRoot "TamaPoke-main\tools\sdcard\mons")
 )
+$pokeSrc = $pokeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$digiRepo = Join-Path $RepoRoot "TamaDigi-main"
+$narutoRepo = Join-Path $RepoRoot "TamaRuto-main"
 
 function Find-Python {
     $candidates = @()
@@ -67,43 +67,44 @@ function Find-Python {
     return $null
 }
 
+function Unpack-Mons([string]$Repo, [string]$PackPattern) {
+    $ready = Join-Path $Repo "tools\sdcard\mons"
+    if (Test-Path $ready) { return $ready }
+    $unpacker = Join-Path $Repo "tools\unpack_bundle.py"
+    $packs = Get-ChildItem (Join-Path $Repo "web") -Filter $PackPattern -ErrorAction SilentlyContinue
+    if (-not (Test-Path $unpacker) -or -not $packs) { return $null }
+    $python = Find-Python
+    if (-not $python) {
+        Write-Host "python 3 not found; cannot unpack $Repo" -ForegroundColor Yellow
+        return $null
+    }
+    Write-Host "unpacking $Repo sprite packs with $unpacker"
+    Push-Location $Repo
+    try { & $python $unpacker } finally { Pop-Location }
+    if (Test-Path $ready) { return $ready }
+    return $null
+}
+
 $a = $false
 $b = $false
-if ($Game -in @("pokemon", "both")) {
+$n = $false
+if ($Game -in @("pokemon", "both", "all")) {
     $a = Copy-Mons $pokeSrc (Join-Path $driveRoot "tamapoke\mons")
 }
-if ($Game -in @("digimon", "both")) {
-    $digi = $digiCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-    # TamaDigi ships sprites as web/sprites-ver*.pak; its own tool restores
-    # tools/sdcard/mons from them.  Run it automatically when the checkout is
-    # present so the user does not have to know the pack format.
-    if (-not $digi) {
-        $unpacker = Join-Path $digiRepo "tools\unpack_bundle.py"
-        $packs = Get-ChildItem (Join-Path $digiRepo "web") -Filter "sprites-ver*.pak" `
-            -ErrorAction SilentlyContinue
-        if ((Test-Path $unpacker) -and $packs) {
-            $python = Find-Python
-            if ($python) {
-                Write-Host "unpacking TamaDigi sprite packs with $unpacker"
-                Push-Location $digiRepo
-                try { & $python $unpacker } finally { Pop-Location }
-                $digi = Join-Path $digiRepo "tools\sdcard\mons"
-            } else {
-                Write-Host "python 3 not found; cannot unpack the TamaDigi packs" -ForegroundColor Yellow
-            }
-        }
-    }
-
-    if ($digi -and (Test-Path $digi)) {
+if ($Game -in @("digimon", "both", "all")) {
+    $digi = Unpack-Mons $digiRepo "sprites-ver*.pak"
+    if ($digi) {
         $b = Copy-Mons $digi (Join-Path $driveRoot "tamadigi\mons")
     } else {
-        Write-Host ""
-        Write-Host "TamaDigi sprites are distributed as version packs, not as a raw folder." -ForegroundColor Yellow
-        Write-Host "From an upstream TamaDigi checkout, run its own tool (no arguments):"
-        Write-Host "  python tools\unpack_bundle.py"
-        Write-Host "It restores tools\sdcard\mons; then copy that folder to $driveRoot\tamadigi\mons\"
-        Write-Host "Alternatively use the game's serial uploader (PUT) with the /tamadigi/mons prefix."
+        Write-Host "TamaDigi sprites missing: run python tools\unpack_bundle.py in $digiRepo" -ForegroundColor Yellow
+    }
+}
+if ($Game -in @("naruto", "all")) {
+    $naruto = Unpack-Mons $narutoRepo "sprites-*.pak"
+    if ($naruto) {
+        $n = Copy-Mons $naruto (Join-Path $driveRoot "tamaruto\mons")
+    } else {
+        Write-Host "TamaNaruto sprites missing: run python tools\unpack_bundle.py in $narutoRepo" -ForegroundColor Yellow
     }
 }
 
@@ -111,4 +112,5 @@ Write-Host ""
 Write-Host "done. expected layout:" -ForegroundColor Green
 Write-Host "  $driveRoot" + "tamapoke\mons\*.bin"
 Write-Host "  $driveRoot" + "tamadigi\mons\*.bin"
-if (-not $a -and -not $b) { exit 1 }
+Write-Host "  $driveRoot" + "tamaruto\mons\*.bin"
+if (-not $a -and -not $b -and -not $n) { exit 1 }

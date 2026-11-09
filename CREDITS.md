@@ -5,10 +5,13 @@ firmwares for one board. The original authors did the hard part.
 
 ## Firmware
 
-- **TamaPoke** — © 2026 Quique Tortosa
-  https://github.com/socquique/TamaPoke — MIT
+- **TamaPoke expanded** — © 2026 Quique Tortosa, ShadowEnemyx and the fork
+  contributors
+  https://github.com/ShadowEnemyx/TamaPoke (branch `tamapoke-expanded-update`) — MIT
 - **TamaDigi** — © 2026 Dennis and the TamaDigi contributors
   https://github.com/joop0810/tamadigi — MIT
+- **TamaNaruto (TamaRuto)** — © 2026 joop0810 and the TamaNaruto contributors
+  https://github.com/joop0810/tamaruto — MIT
 - **TamaHub** (game selector, build tooling, installer) — © 2026 TamaHub
   contributors — MIT
 
@@ -21,13 +24,15 @@ firmwares for one board. The original authors did the hard part.
   only.
 - Digimon names, designs and sprites are © Bandai, Toei Animation and their
   respective rights holders.
+- Naruto names, designs and sprites are © Masashi Kishimoto, Shueisha and Bandai.
+  TamaNaruto's Naruto sprites are ripped from *Naruto: Ninja Council 1 & 2*.
 - Sprite packs are not authored by this project; they are the same assets the
   upstream projects distribute.
-- `web/sd/tamapoke/sprites.pak` (303 entries) and
-  `web/sd/tamadigi/sprites-ver1..5.pak` (175 unique entries after merging) are
+- `web/sd/tamapoke/sprites.pak` + `sprites-gen3-update.pak` (773 unique files),
+  `web/sd/tamadigi/sprites-ver1..5.pak` (175 unique files) and
+  `web/sd/tamaruto/sprites-{konoha,suna,kiri,oto}.pak` (67 unique files) are
   byte-for-byte copies of the upstream web bundles. They are **not** covered by
-  the MIT licence: the Pokémon sprites are CC BY-NC, the Digimon sprites belong
-  to their rights holders.
+  the MIT licence.
 
 ## Web installer / SD uploader
 

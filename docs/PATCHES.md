@@ -25,19 +25,24 @@ only to make two independent firmwares share one device.
 
 ### `sdmon.cpp` – serial commands for the web uploader
 
-Both games now answer three commands used by `web/index.html`:
+All three games answer the commands used by `web/index.html`:
 
-- `WHOAMI` → `TAMAPOKE` or `TAMADIGI`; the page refuses to upload to the hub or
-  to the wrong game.
+- `WHOAMI` → `TAMAPOKE`, `TAMADIGI` or `TAMARUTO`; the page refuses to upload
+  to the hub or to the wrong game.
 - `SDSTAT` → `SD READY total=… used=…` or `SD ERR total=… used=…`, then `DONE`.
-  The page disables uploads until the card is ready.
+  The page shows free space and disables uploads until the card is ready.
+- `SDTEST` → writes/read-verifies a 512-byte temporary file under the game's
+  root, then removes it. This distinguishes a mounted-but-write-protected /
+  fake / full card from a path problem.
 - `SDFORMAT` → unmounts and remounts the card. The Arduino `SD_MMC.begin(...,
   formatIfMountFailed=true)` only formats a card it cannot mount, so a working
   FAT32 card keeps its data. The page warns that an unreadable card will be
-  reformatted (wiping both games' sprites).
+  reformatted.
+- `SDCLEAR` → deletes the files under the current game's `mons` root, so a
+  partial/full card can be retried without reformatting the whole card.
 
-Digi also keeps its upstream `SD MOUNT [FORMAT]` command. Poke's `SDFORMAT` is
-new; `SDINFO` and `LS` remain.
+Digi/Naruto keep their upstream `SD MOUNT [FORMAT]` and `SUM` commands; Poke's
+`SDINFO` and `LS` remain.
 
 ### `pet.cpp` – `syncClock()`
 
@@ -63,6 +68,7 @@ has a `MONS_ROOT` macro:
 
 - TamaPoke: `/tamapoke/mons`
 - TamaDigi: `/tamadigi/mons`
+- TamaNaruto: `/tamaruto/mons`
 
 All sprite loads, `thumbs.bin`, pack markers, `LS` and serial `PUT` paths use
 it. `char path[24/28]` buffers were widened to `[32]` so the longer root cannot
@@ -70,14 +76,14 @@ truncate a name. `PUT` still accepts the upstream `mons/xxx.bin` form and
 rewrites it to the game's own root, so the original upload tools keep working
 without being able to write into the other game's sprites.
 
-## TamaPoke
+## TamaPoke (expanded fork v1.36.2)
 
 | File | Change |
 |---|---|
-| `TamaPoke.ino` | include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (save → release → verify hub → erase otadata → restart) |
+| `TamaPoke.ino` | force `TAMAPOKE_GEN3_RELEASE` (386 species); add `TAMAHUB_APP_VERSION`; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` |
 | `pet.h` | public `saveNow()` |
 | `pet.cpp` | `saveNow()` implementation; `resumeAt` in `syncClock()` |
-| `sdmon.cpp` | `MONS_ROOT`; `SD_MMC.begin(..., false)` so a mount failure can no longer format the card |
+| `sdmon.cpp` | `MONS_ROOT`; `SD_MMC.begin(..., false)`; path rewrite; `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR`; safe `PUT` |
 
 ## TamaDigi
 
@@ -87,15 +93,24 @@ without being able to write into the other game's sprites.
 | `pet.cpp` | `resumeAt` in `syncClock()` |
 | `sdmon.cpp` | `MONS_ROOT`; pack marker and `thumbs.bin` comparison use it; `PUT` is restricted to `/tamadigi/mons/` (upstream `mons/…` is rewritten); `PUT` removes an existing file first so a resumed/retried upload replaces it instead of appending |
 
+## TamaNaruto (slot 3)
+
+| File | Change |
+|---|---|
+| `TamaNaruto.ino` | add `TAMAHUB_APP_VERSION`; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` |
+| `pet.cpp` | `resumeAt` in `syncClock()` (NVS namespace `tamanaruto`) |
+| `sdmon.cpp` | `MONS_ROOT = /tamaruto/mons`; path rewrite; `PUT` removes an existing file; `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` |
+| `hub/hub.ino` | slot 3 is now `ota_2` / `tamanaruto` / `NARUTO` |
+
 ## Not patched on purpose
 
-- **Save formats / keys**: unchanged. Existing `tamapoke` / `tamadigi` NVS
-  data remains readable.
+- **Save formats / keys**: unchanged. Existing `tamapoke` / `tamadigi` /
+  `tamanaruto` NVS data remains readable.
 - **PWR button**: still only power / screen-off / flush. The 4 s AXP2101
   hardware cutoff is untouched.
-- **In-game UI**: no menu entry was added to either game. Switching is a
+- **In-game UI**: no menu entry was added to any game. Switching is a
   physical-button gesture only, so touch targets and layouts stay identical.
-- **Internal FATFS**: still unused by both games; sprites come from microSD.
+- **Internal FATFS**: still unused by all games; sprites come from microSD.
 
 ## Manual operations that can still wipe shared data
 

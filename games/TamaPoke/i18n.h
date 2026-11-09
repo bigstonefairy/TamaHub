@@ -1,15 +1,9 @@
 #pragma once
 #include <Arduino.h>
 
-// Idiomas soportados. La fuente 5x7 de Arduino_GFX es una tabla CP437 completa
-// (256 glifos), asi que SI hay acentos, dieresis y enes: van como byte suelto en
-// octal (\240 a, \244 n~, \202 e, \204 a"...), nunca en UTF-8, porque la UI centra
-// con strlen(t)*6 y un caracter de dos bytes descuadraria las etiquetas.
-// No estan en CP437: las mayusculas acentuadas salvo E (\220), ni a~/o~ del portugues.
-enum Lang : uint8_t { LANG_ES = 0, LANG_EN, LANG_FR, LANG_DE, LANG_IT, LANG_PT,
-                     LANG_JA, LANG_KO, LANG_COUNT };
-// idiomas que necesitan una fuente U8g2 y texto UTF-8 en vez de la tabla CP437
-#define LANG_IS_CJK(l) ((l) == LANG_JA || (l) == LANG_KO)
+// Idiomas soportados. La fuente del firmware no tiene acentos: ambos textos van
+// sin tildes ni enes (igual que ya iba el espanol).
+enum Lang : uint8_t { LANG_ES = 0, LANG_EN, LANG_FR, LANG_DE, LANG_IT, LANG_PT, LANG_COUNT };
 #define LANG_DEFAULT LANG_EN  // idioma por defecto: ingles
 
 extern Lang gLang;  // idioma activo (definido en i18n.cpp)
@@ -24,7 +18,7 @@ enum StrId : uint8_t {
   // huevo
   S_EGG_HDR, S_EGG_LEGEND, S_EGG_RARE, S_EGG_TOUCH, S_EGG_MOVES, S_EGG_ALMOST,
   // formatos compartidos
-  S_POKEDEX_FMT,   // "POKEDEX %u/151"
+  S_POKEDEX_FMT,   // "POKEDEX %u/%u"
   S_NAME_FMT,      // "%s%s Nv.%u"
   // dialogo soltar
   S_RELEASE_FMT, S_YES, S_NO,
@@ -51,19 +45,60 @@ enum StrId : uint8_t {
   // ficha: pagina de progreso
   S_PROGRESS, S_LVL_FMT, S_NEXT_LVL_FMT, S_EVO_LABEL, S_FINAL_FORM,
   S_EVO_READY, S_EVO_BLOCKED, S_EVO_IN_FMT, S_MISTAKES_FMT,
-  // interruptor de sonido (ajustes)
-  S_SND_ON, S_SND_OFF,
+  // modo de sonido (ajustes)
+  S_SND_FULL, S_SND_MED, S_SND_LOW, S_SND_OFF, S_PSAVE_ON, S_PSAVE_OFF,
   S_EVO_TAP,        // texto del boton de evolucion
   S_FAREWELL_BTN,   // texto del boton de despedida (lleva el nombre: "%s ...")
   S_RUNAWAY_BTN,    // texto del boton de escapada por abandono (final triste)
   // dialogos de decision (evolucionar/mantener, despedirse/quedaros)
   S_EVO_Q, S_EVO_KEEP, S_FAR_Q, S_FAR_GO, S_FAR_STAY,
-  S_CHOOSE_STARTER,  // titulo de la eleccion del inicial (primera vez)
+  S_CHOOSE_STARTER, S_CHOOSE_REGION,  // seleccion inicial de region y starter
   S_NO_SPRITES, S_LOAD_SPRITES,  // aviso cuando falta el sprite en la SD
+  S_WILD_BATTLE, S_FIGHT, S_RUN_BATTLE, S_WIN, S_LOSS, S_ROUNDS_FMT, S_DAMAGE_FMT, S_OK,
+  S_ATTACK, S_DODGE, S_REST, S_HIT_FMT, S_MISSED, S_DODGED, S_RESTED_FMT, S_RAN,
+  S_WL_FMT, S_BSTREAK_FMT, S_BBEST_FMT, S_ATK_GAIN_FMT, S_DEF_GAIN_FMT, S_SPD_GAIN_FMT, S_HYG_GAIN_FMT,
+  S_COUNTER_READY, S_NO_REST, S_WILD_Q, S_LATER,
+  S_QUICK_ATTACK, S_HEAVY_ATTACK,
+  S_ENEMY_DODGED, S_GUARD,
+  S_GAME_BALL, S_GAME_CATCH, S_GAME_MEMO, S_GAME_CLEAN, S_GAME_TYPE, S_CATCH_TITLE, S_CLEAN_TITLE, S_TYPE_TITLE, S_ROUND_FMT,
+  S_EVENT_FOUND, S_EVENT_PET, S_EVENT_LUCKY,
+  S_PERSONALITY, S_PERS_BALANCED, S_PERS_PLAYFUL, S_PERS_BRAVE, S_PERS_CALM, S_PERS_LAZY,
+  S_PERS_BALANCED_HINT, S_PERS_PLAYFUL_HINT, S_PERS_BRAVE_HINT, S_PERS_CALM_HINT, S_PERS_LAZY_HINT,
+  S_RECORDS, S_AGE_DAYS_FMT,
+  S_DAILY, S_DONE, S_REWARD, S_GOAL_CARE, S_GOAL_PLAY, S_GOAL_BATTLE, S_GOAL_CATCH, S_GOAL_MEMO,
+  S_CATCH_WILD, S_LEAVE_WILD, S_CAUGHT_OK, S_ESCAPED, S_CAUGHT_MARK, S_RAISED_MARK,
+  S_FILTER_ALL,
+  S_EFFECTIVE, S_NOT_EFFECTIVE,
+  S_BOX, S_NO_CATCHES, S_CAUGHT_COUNT_FMT,
+  S_HAPPY_FB, S_BOND_GAIN, S_WAIT,
+  S_MORNING, S_DAY, S_EVENING, S_NIGHT,
+  S_DEX_GOAL_FMT, S_DEX_REWARD, S_KNOWN_FMT,
+  S_SORT_DEX, S_SORT_TYPE, S_SORT_RAISED, S_PAGE_FMT,
+  S_CLOSE_CHANCE,
+  S_EXPEDITION, S_EXP_15, S_EXP_30, S_EXP_60, S_EXP_IN_FMT, S_EXP_READY, S_EXP_HUD_TOUR, S_EXP_HUD_BAG,
+  S_EXP_CLAIM, S_INVENTORY, S_INV_FULL, S_NEED_ENE_FMT,
+  S_ITEM_SNACK, S_ITEM_ENERGY, S_ITEM_CARE, S_ITEM_TRAIN, S_FOUND_ITEM_FMT,
+  S_TRAIN_ATK, S_TRAIN_DEF, S_TRAIN_SPE, S_ITEM_MAXED,
+  S_COLLECTION, S_FRAME_FMT, S_NEW_FRAME,
+  S_RANK_TRAINER, S_RANK_SCOUT, S_RANK_COLLECTOR, S_RANK_RESEARCHER, S_RANK_MASTER,
+  S_RANK_KANTO, S_RANK_JOHTO, S_RANK_JOHTO_MASTER, S_RANK_COMPLETE,
+  S_RANK_HOENN, S_RANK_COMPLETE_ALL,
+  S_MEMO_WATCH, S_MEMO_TURN_FMT, S_MEMO_WRONG,
+  // kurze UI-Texte, die vorher als englische Literale im Sketch standen
+  S_PLAY, S_LEVEL_SHORT_FMT, S_ROUND_SHORT_FMT, S_RAISED_CAUGHT_FMT,
+  S_STATUS_NEW, S_STATUS_FLASH_NO,
+  S_GOOD_MORNING,
+  // Schrittzaehler und Trail-Belohnungen
+  S_STEPS, S_STEPS_TODAY_FMT, S_STEPS_TOTAL_FMT, S_TRAIL_RANK_FMT,
+  S_SHINY_LUCK_FMT, S_CATCH_BONUS_FMT, S_STEP_GOAL_FMT, S_STEP_REWARD,
+  S_EXP_COAST, S_EXP_VOLCANO, S_EXP_FOREST, S_EXP_SEALS_FMT,
+  S_EXP_WALK_PROGRESS, S_EXP_WALK_EARNED,
+  S_EVO_NEED_BOND,
   STR_COUNT
 };
 
 const char *T(StrId id);       // texto en el idioma activo
+const char *dexName(int16_t dex); // nombre de Pokemon en el idioma activo
 const char *medalName(int i);  // banner de medalla (MED_COUNT)
 const char *medalLabel(int i); // etiqueta corta de medalla
 const char *medalDesc(int i);  // descripcion larga de medalla

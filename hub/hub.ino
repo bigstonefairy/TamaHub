@@ -85,7 +85,7 @@ struct Slot {
 static Slot slots[3] = {
     {ESP_PARTITION_SUBTYPE_APP_OTA_0, "tamapoke", "POKEMON", 'P', C_POKE, nullptr, false, ""},
     {ESP_PARTITION_SUBTYPE_APP_OTA_1, "tamadigi", "DIGIMON", 'D', C_DIGI, nullptr, false, ""},
-    {ESP_PARTITION_SUBTYPE_APP_OTA_2, nullptr, "EXTRA SLOT", '+', C_EXTRA, nullptr, false, ""},
+    {ESP_PARTITION_SUBTYPE_APP_OTA_2, "tamanaruto", "NARUTO", 'N', C_EXTRA, nullptr, false, ""},
 };
 static const int SLOT_COUNT = 3;
 static int selected = 0;
@@ -255,7 +255,7 @@ static void drawFooter() {
 
 static void draw() {
   gfx->fillScreen(C_BG);
-  textCenter("TAMA HUB", 26, 4, C_FG);
+  textCenter("TAMA HUB v" HUB_VERSION, 26, 4, C_FG);
   textCenter("choose a game", 64, 2, C_DIM);
 
   drawCard(0, 92);

@@ -119,7 +119,7 @@ if (-not $SkipHub) {
 }
 
 if (-not $SkipGames) {
-    foreach ($game in @("TamaPoke", "TamaDigi")) {
+    foreach ($game in @("TamaPoke", "TamaDigi", "TamaNaruto")) {
         Write-Host "`n=== $game (ota slot, app3M scheme) ===" -ForegroundColor Cyan
         & $cli compile --fqbn $fqbnGame --build-path (Join-Path $BuildDir $game) (Join-Path $SketchRoot "games\$game")
         if ($LASTEXITCODE -ne 0) { Fail "$game build failed" }
@@ -130,7 +130,7 @@ $binArgs = @()
 if (Test-Path (Join-Path $BuildDir "hub\hub.ino.bin")) {
     $binArgs += "--bin", "factory=$(Join-Path $BuildDir 'hub\hub.ino.bin')"
 }
-foreach ($pair in @(@("TamaPoke", "ota_0"), @("TamaDigi", "ota_1"))) {
+foreach ($pair in @(@("TamaPoke", "ota_0"), @("TamaDigi", "ota_1"), @("TamaNaruto", "ota_2"))) {
     $bin = Join-Path $BuildDir "$($pair[0])\$($pair[0]).ino.bin"
     if (Test-Path $bin) { $binArgs += "--bin", "$($pair[1])=$bin" }
 }

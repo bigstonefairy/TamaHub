@@ -322,6 +322,46 @@ bool sdSerialCommand(const String &line) {
     Serial.println("DONE");
     return true;
   }
+  if (line == "SDTEST") {
+    bool ok = false;
+    if (sdReady) {
+      File f = SD_MMC.open(MONS_ROOT "/.sdtest", FILE_WRITE);
+      if (f) {
+        uint8_t test[512];
+        memset(test, 0xA5, sizeof(test));
+        ok = f.write(test, sizeof(test)) == sizeof(test);
+        f.close();
+        SD_MMC.remove(MONS_ROOT "/.sdtest");
+      }
+    }
+    Serial.println(ok ? "SDTEST OK" : "SDTEST ERR");
+    Serial.println("DONE");
+    return true;
+  }
+  if (line == "SDCLEAR") {
+    bool ok = sdReady;
+    if (ok) {
+      File dir = SD_MMC.open(MONS_ROOT);
+      if (dir) {
+        File e;
+        while ((e = dir.openNextFile())) {
+          if (!e.isDirectory() && !SD_MMC.remove(e.path())) ok = false;
+          e.close();
+        }
+        dir.close();
+      } else {
+        ok = false;
+      }
+    }
+    if (ok) {
+      sdDirty = true;
+      sdArtDirty = true;
+      sdThumbsDirty = true;
+    }
+    Serial.println(ok ? "SD CLEAR OK" : "SD CLEAR ERR");
+    Serial.println("DONE");
+    return true;
+  }
   if (line.startsWith("PUT ")) {
     int sp = line.lastIndexOf(' ');
     String path = line.substring(4, sp);

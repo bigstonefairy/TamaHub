@@ -1,5 +1,53 @@
 # Changelog
 
+## v1.1.0 — 2026-11-09
+
+Four-app build: expanded Pokémon, Digimon, Naruto, and version-aware SD tools.
+
+### Added
+
+- **TamaPoke expanded v1.36.2** (`ota_0`, Gen-3, 386 Pokémon) from
+  ShadowEnemyx's `tamapoke-expanded-update` branch. SD needs the base pack
+  (#1–251) and the Gen-3 update pack (#252–386), 773 files / ~105 MB total.
+- **TamaNaruto v1.2.0** (`ota_2`, slot 3) from `joop0810/tamaruto`; hub card
+  `NARUTO`, NVS namespace `tamanaruto`, SD root `/tamaruto/mons`, 67 files
+  merged from the four village packs.
+- **Version display**: hub screen shows `TAMA HUB v1.0`; the installer page
+  shows Hub/Pokémon/Digimon/Naruto versions from the deployed manifests.
+- **SD diagnostics**: the page now runs `SDTEST` (512-byte write/read/delete)
+  before enabling uploads, shows free space, reports the failing block on a
+  failed PUT, and offers per-game **SDCLEAR** to free space without formatting.
+- **Four-app installer**: full install and per-slot updates for `factory`,
+  `ota_0`, `ota_1`, `ota_2`; CI builds all four and checks all offsets.
+- **Sprite packs**: `web/sd/` now contains 11 bundles (122.7 MB): Pokémon
+  base+Gen3, five Digimon regions, four Naruto villages.
+
+### Changed
+
+- `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` added to all three games.
+- SD uploader identifies the running game and only enables the matching button.
+- Serial reads have a real timeout; a missing/old firmware no longer freezes on
+  the first file. GitHub Pages gzip no longer produces a bogus total in the log.
+- Digimon/Naruto `PUT` removes an existing file before writing.
+
+### Firmware
+
+| App | Version | Size | Slot |
+|---|---|---:|---|
+| TamaHub | 1.0 | 435,008 B | `0x20000` |
+| TamaPoke | 1.36.2 | 730,496 B | `0x320000` |
+| TamaDigi | 1.0.1 | 1,667,600 B | `0x620000` |
+| TamaNaruto | 1.2.0 | 1,719,680 B | `0x920000` |
+
+### Known limitations
+
+- Pokémon needs ~105 MB free on the SD card (two packs).
+- SD uploads run only while the selected game is running; TamaHub cannot upload.
+- Offline progression needs a valid RTC reading (fit the PCF85063 backup cell).
+- `ota_2` is now filled; adding a fourth game needs a new partition layout.
+
+---
+
 ## v1.0.0 — 2026-11-08
 
 First multi-game release for the Waveshare ESP32-S3-Touch-AMOLED-1.75.

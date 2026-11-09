@@ -12,7 +12,7 @@ struct SdMon {
   uint16_t pal[256];
   uint8_t *data = nullptr;  // frames * w * h indices (0xFF = transparente)
 
-  bool load(uint8_t dexNum, bool shiny = false);
+  bool load(uint16_t dexNum, bool shiny = false);
   void unload();
 };
 
@@ -38,7 +38,7 @@ struct PmdMon {
   uint8_t *blob = nullptr;
   PmdAct acts[PMD_NACTS];
 
-  bool load(uint8_t dexNum, bool shiny = false);
+  bool load(uint16_t dexNum, bool shiny = false);
   void unload();
   bool has(uint8_t a) const { return loaded && a < PMD_NACTS && acts[a].frames > 0; }
 };
@@ -47,10 +47,10 @@ struct PmdMon {
 struct SdThumbs {
   bool loaded = false;
   uint8_t *data = nullptr;
+  uint32_t dataSize = 0;
   uint16_t count = 0;
-  uint32_t size = 0;  // bytes leidos: acota los offsets del fichero
   bool load();
-  void unload();  // libera el blob: recargar tras recibir un thumbs.bin nuevo
+  void unload();
   const uint8_t *get(int16_t dex) const;  // blob: w,h,palCount,pal[],idx[]
 };
 extern SdThumbs thumbs;

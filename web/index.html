@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TamaHub — Pokémon + Digimon 멀티부팅</title>
+<title>TamaHub — Pokémon + Digimon + Naruto 멀티부팅</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -75,6 +75,9 @@
   .pill { display: inline-block; font-size: 11.5px; border: 1px solid var(--line);
           border-radius: 999px; padding: 1px 9px; color: var(--dim); margin-left: 6px; }
 
+  .versions { color: var(--dim); font-size: 13.5px; margin: -10px 0 22px; }
+  .versions b { color: var(--fg); font-weight: 600; }
+
   .sd {
     background: var(--panel2); border: 1px solid var(--line);
     border-radius: 12px; padding: 16px; margin: 14px 0;
@@ -90,6 +93,7 @@
   .sd button.primary { background: #2b4a78; border-color: #3f6ca8; }
   .sd button.poke { background: #5a2020; border-color: #8a3030; }
   .sd button.digi { background: #1d3a5e; border-color: #2f5d94; }
+  .sd button.naruto { background: #3a2a5e; border-color: #6a4a9e; }
   .sd .status { color: var(--dim); font-size: 13px; }
   .sd .status.on { color: var(--ok); }
   .sd .status.warn { color: var(--warn); }
@@ -114,7 +118,8 @@
 <body>
 <main>
   <h1><span class="poke">Tama</span><span class="digi">Hub</span></h1>
-  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon과 Digimon을 한 기기에, 부팅 메뉴로.</p>
+  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto를 한 기기에, 부팅 메뉴로.</p>
+  <p class="versions" id="versions">버전 확인 중…</p>
 
   <section>
     <h2>설치 <span class="pill">Chrome / Edge 데스크톱</span></h2>
@@ -148,6 +153,10 @@
         <div class="label"><strong>Digimon</strong><span>ota_1</span></div>
         <esp-web-install-button manifest="manifest-ota1.json"></esp-web-install-button>
       </div>
+      <div class="install">
+        <div class="label"><strong>Naruto</strong><span>ota_2</span></div>
+        <esp-web-install-button manifest="manifest-ota2.json"></esp-web-install-button>
+      </div>
     </div>
   </section>
 
@@ -171,10 +180,11 @@
        SD 카드를 뽑거나 PC에 꽂을 필요가 없습니다.</p>
     <div class="warn">
       <strong>업로드할 게임이 실행 중이어야 합니다.</strong><br>
-      Pokémon은 <strong>TamaPoke</strong>, Digimon은 <strong>TamaDigi</strong> 화면이 떠 있을 때 연결하세요.
+      Pokémon은 <strong>TamaPoke</strong>, Digimon은 <strong>TamaDigi</strong>, Naruto는
+      <strong>TamaNaruto</strong> 화면이 떠 있을 때 연결하세요.
       TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.<br>
       <strong>구버전 펌웨어</strong>는 게임 확인 명령이 없어 연결이 거부됩니다.
-      먼저 위의 <strong>Pokémon / Digimon 업데이트</strong>를 실행하세요.
+      먼저 위의 <strong>Pokémon / Digimon / Naruto 업데이트</strong>를 실행하세요.
     </div>
     <div class="sd">
       <p class="hint">microSD는 <strong>FAT32</strong>로 포맷되어 있어야 합니다. 카드가 인식되지 않으면
@@ -188,11 +198,13 @@
       <div class="sd-row">
         <span id="sd-card" class="status">SD: 확인 안 됨</span>
         <button id="sd-format" disabled>SD 마운트 / 포맷</button>
+        <button id="sd-clear" disabled>스프라이트 비우기</button>
       </div>
       <div class="bar" id="sd-bar"><div></div></div>
       <div class="sd-row">
-        <button id="sd-poke" class="poke" disabled>Pokémon 스프라이트 넣기 (~40MB)</button>
+        <button id="sd-poke" class="poke" disabled>Pokémon 스프라이트 넣기 (~105MB)</button>
         <button id="sd-digi" class="digi" disabled>Digimon 스프라이트 넣기 (~10MB)</button>
+        <button id="sd-naruto" class="naruto" disabled>Naruto 스프라이트 넣기 (~9MB)</button>
       </div>
       <p class="hint">
         중간에 끊기면 USB를 다시 연결하고 같은 버튼을 누르세요. 이미 확인된 파일은 건너뜁니다.
@@ -263,7 +275,7 @@
   </section>
 
   <footer>
-    팬 프로젝트 · 비상업용 · 코드 MIT · Pokémon © Nintendo/Game Freak · Digimon © Bandai/Toei
+    팬 프로젝트 · 비상업용 · 코드 MIT · Pokémon © Nintendo/Game Freak · Digimon © Bandai/Toei · Naruto © Masashi Kishimoto/Shueisha/Bandai
   </footer>
 </main>
 
@@ -285,11 +297,14 @@
   let busy = false;
   let currentGame = null;
   let sdReady = null;
+  let sdWritable = null;
+  let sdFree = null;
   const READ_TIMEOUT = Symbol('read-timeout');
 
   const RESUME = {
-    tamapoke: 'tamahub_sd_tamapoke_v1',
+    tamapoke: 'tamahub_sd_tamapoke_v2',
     tamadigi: 'tamahub_sd_tamadigi_v1',
+    tamaruto: 'tamahub_sd_tamaruto_v1',
     manual: 'tamahub_sd_manual_v1',
   };
 
@@ -318,17 +333,20 @@
 
   function refreshButtons() {
     const connected = !!writer;
-    const canUpload = connected && sdReady === true && !busy;
+    const canUpload = connected && sdReady === true && sdWritable === true && !busy;
     $('sd-connect').disabled = connected || busy;
     $('sd-disconnect').disabled = !connected || busy;
     $('sd-poke').disabled = !canUpload || currentGame !== 'tamapoke';
     $('sd-digi').disabled = !canUpload || currentGame !== 'tamadigi';
+    $('sd-naruto').disabled = !canUpload || currentGame !== 'tamaruto';
     $('sd-format').disabled = !connected || busy;
+    $('sd-clear').disabled = !connected || busy || sdReady !== true;
     $('sd-reset').disabled = busy;
     $('sd-files').disabled = !canUpload;
     setStatus(connected
       ? (currentGame === 'tamapoke' ? 'TamaPoke 연결됨'
-        : currentGame === 'tamadigi' ? 'TamaDigi 연결됨' : '연결됨')
+        : currentGame === 'tamadigi' ? 'TamaDigi 연결됨'
+        : currentGame === 'tamaruto' ? 'TamaNaruto 연결됨' : '연결됨')
       : '연결 안 됨', connected);
   }
 
@@ -396,6 +414,8 @@
     decoder = new TextDecoder();
     currentGame = null;
     sdReady = null;
+    sdWritable = null;
+    sdFree = null;
     setCardStatus('SD: 확인 안 됨', null);
     refreshButtons();
   }
@@ -407,6 +427,7 @@
       const line = await readLine(Math.max(1, deadline - Date.now()));
       if (line === 'TAMAPOKE') return 'tamapoke';
       if (line === 'TAMADIGI') return 'tamadigi';
+      if (line === 'TAMARUTO') return 'tamaruto';
       if (line === null) return null;
     }
     return null;
@@ -416,17 +437,45 @@
     await writer.write(enc.encode('SDSTAT\n'));
     const deadline = Date.now() + 5000;
     let ready = null;
+    let total = 0;
+    let used = 0;
     while (Date.now() < deadline) {
       const line = await readLine(Math.max(1, deadline - Date.now()));
       if (line === null) break;
-      if (line.startsWith('SD READY')) ready = true;
-      else if (line.startsWith('SD ERR')) ready = false;
-      else if (line === 'DONE') break;
+      const match = /^SD (READY|ERR) total=(\d+) used=(\d+)/.exec(line);
+      if (match) {
+        ready = match[1] === 'READY';
+        total = Number(match[2]);
+        used = Number(match[3]);
+      } else if (line === 'DONE') {
+        break;
+      }
     }
     sdReady = ready;
+    sdWritable = null;
+    sdFree = ready === true ? Math.max(0, total - used) : null;
+
     if (ready === true) {
-      log('SD: READY');
-      setCardStatus('SD: READY', 'on');
+      await writer.write(enc.encode('SDTEST\n'));
+      const testDeadline = Date.now() + 5000;
+      while (Date.now() < testDeadline) {
+        const line = await readLine(Math.max(1, testDeadline - Date.now()));
+        if (line === null) break;
+        if (line === 'SDTEST OK') sdWritable = true;
+        else if (line === 'SDTEST ERR') sdWritable = false;
+        else if (line === 'DONE') break;
+      }
+      const freeMB = (sdFree || 0) / 1048576;
+      if (sdWritable === true) {
+        log(`SD: READY (${freeMB.toFixed(1)} MB free, write OK)`);
+        setCardStatus(`SD: READY · ${freeMB.toFixed(0)}MB free`, 'on');
+      } else if (sdWritable === false) {
+        log('SD: 쓰기 테스트 실패 — 카드가 쓰기 금지/불량이거나 가득 찼습니다. PC에서 FAT32 포맷 또는 카드 교체가 필요합니다.');
+        setCardStatus('SD: 쓰기 실패', 'warn');
+      } else {
+        log('SD: READY (쓰기 테스트 응답 없음)');
+        setCardStatus('SD: READY · 쓰기 확인 불가', 'warn');
+      }
     } else if (ready === false) {
       log('SD: 인식되지 않았습니다. 카드를 다시 넣거나 "SD 마운트 / 포맷"을 눌러보세요.');
       setCardStatus('SD: 인식 안 됨', 'warn');
@@ -462,7 +511,8 @@
         return;
       }
       currentGame = game;
-      log('연결됨: ' + (game === 'tamapoke' ? 'TamaPoke' : 'TamaDigi'));
+      const labels = { tamapoke: 'TamaPoke', tamadigi: 'TamaDigi', tamaruto: 'TamaNaruto' };
+      log('연결됨: ' + labels[game]);
       await querySd();
       setBusy(false);
     } catch (error) {
@@ -476,13 +526,18 @@
 
   async function sendOne(name, data, onBlock) {
     await writer.write(enc.encode(`PUT ${name} ${data.length}\n`));
-    if (!await waitFor('OK', 10000)) return false;
+    if (!await waitFor('OK', 10000)) return { ok: false, reason: 'PUT OK 응답 없음 (SD 열기 실패)' };
+    let block = 0;
     for (let offset = 0; offset < data.length; offset += 2048) {
+      block++;
       await writer.write(data.subarray(offset, offset + 2048));
-      if (!await waitFor('#', 10000)) return false;
+      if (!await waitFor('#', 10000)) {
+        return { ok: false, reason: `블록 ${block} ACK 실패 (SD 쓰기 실패)` };
+      }
       if (onBlock) onBlock(Math.min(data.length, offset + 2048));
     }
-    return await waitFor('DONE', 30000);
+    if (!await waitFor('DONE', 30000)) return { ok: false, reason: 'DONE 응답 없음' };
+    return { ok: true };
   }
 
   function parsePak(buffer) {
@@ -570,18 +625,17 @@
         continue;
       }
       log(`[${index + 1}/${items.length}] ${item.name} (${(item.data.length / 1024).toFixed(0)} KB)`);
-      let ok = false;
+      let result = { ok: false, reason: '알 수 없는 오류' };
       try {
-        ok = await sendOne(item.name, item.data, (sentBytes) => {
+        result = await sendOne(item.name, item.data, (sentBytes) => {
           setProgress((index + sentBytes / item.data.length) / items.length);
         });
       } catch (error) {
-        log('  오류: ' + error.message);
-        ok = false;
+        result = { ok: false, reason: error.message };
       }
-      if (!ok) {
+      if (!result.ok) {
         failed++;
-        log(`  실패: ${item.name}`);
+        log(`  실패: ${item.name} — ${result.reason}`);
         break;
       }
       sent.add(itemKey);
@@ -601,14 +655,22 @@
 
   async function uploadPoke() {
     if (!writer || busy) return;
-    if (currentGame !== 'tamapoke' || sdReady !== true) {
-      log('TamaPoke가 실행 중이고 SD가 READY일 때만 Pokémon 업로드를 할 수 있습니다.');
+    if (currentGame !== 'tamapoke' || sdReady !== true || sdWritable !== true) {
+      log('TamaPoke가 실행 중이고 SD가 READY/쓰기 가능일 때만 Pokémon 업로드를 할 수 있습니다.');
+      return;
+    }
+    if (sdFree !== null && sdFree < 105 * 1024 * 1024) {
+      log(`Pokémon은 약 105MB 필요합니다. 현재 여유 ${(sdFree / 1048576).toFixed(0)}MB — "스프라이트 비우기" 또는 PC 포맷/카드 교체가 필요합니다.`);
       return;
     }
     setBusy(true);
     try {
-      const buffer = await fetchPak('sd/tamapoke/sprites.pak', 'Pokémon sprites.pak');
-      const items = parsePak(buffer);
+      const merged = new Map();
+      const base = await fetchPak('sd/tamapoke/sprites.pak', 'Pokémon base (Gen1-2)');
+      for (const item of parsePak(base)) merged.set(item.name, item);
+      const gen3 = await fetchPak('sd/tamapoke/sprites-gen3-update.pak', 'Pokémon Gen3 update');
+      for (const item of parsePak(gen3)) merged.set(item.name, item);
+      const items = [...merged.values()];
       log(`파일 ${items.length}개. 업로드 시작.`);
       await sendAll(items, RESUME.tamapoke, 'Pokémon');
     } catch (error) {
@@ -620,8 +682,12 @@
 
   async function uploadDigi() {
     if (!writer || busy) return;
-    if (currentGame !== 'tamadigi' || sdReady !== true) {
-      log('TamaDigi가 실행 중이고 SD가 READY일 때만 Digimon 업로드를 할 수 있습니다.');
+    if (currentGame !== 'tamadigi' || sdReady !== true || sdWritable !== true) {
+      log('TamaDigi가 실행 중이고 SD가 READY/쓰기 가능일 때만 Digimon 업로드를 할 수 있습니다.');
+      return;
+    }
+    if (sdFree !== null && sdFree < 12 * 1024 * 1024) {
+      log('Digimon은 약 10MB 필요합니다. SD 여유 공간을 확보하세요.');
       return;
     }
     setBusy(true);
@@ -642,8 +708,37 @@
     }
   }
 
+  async function uploadNaruto() {
+    if (!writer || busy) return;
+    if (currentGame !== 'tamaruto' || sdReady !== true || sdWritable !== true) {
+      log('TamaNaruto가 실행 중이고 SD가 READY/쓰기 가능일 때만 Naruto 업로드를 할 수 있습니다.');
+      return;
+    }
+    if (sdFree !== null && sdFree < 12 * 1024 * 1024) {
+      log('Naruto는 약 9MB 필요합니다. SD 여유 공간을 확보하세요.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const merged = new Map();
+      for (const village of ['konoha', 'suna', 'kiri', 'oto']) {
+        const buffer = await fetchPak(`sd/tamaruto/sprites-${village}.pak`, `Naruto ${village}`);
+        for (const item of parsePak(buffer)) merged.set(item.name, item);
+        log(`  ${village} 파싱 완료 (누적 ${merged.size}개)`);
+      }
+      const items = [...merged.values()];
+      log(`파일 ${items.length}개. 업로드 시작.`);
+      await sendAll(items, RESUME.tamaruto, 'Naruto');
+    } catch (error) {
+      log('오류: ' + error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   $('sd-poke').onclick = uploadPoke;
   $('sd-digi').onclick = uploadDigi;
+  $('sd-naruto').onclick = uploadNaruto;
 
   $('sd-format').onclick = async () => {
     if (!writer || busy) return;
@@ -671,9 +766,37 @@
     }
   };
 
+  $('sd-clear').onclick = async () => {
+    if (!writer || busy || sdReady !== true) return;
+    if (!confirm('현재 게임의 스프라이트를 SD에서 모두 삭제합니다. 계속할까요?')) return;
+    setBusy(true);
+    try {
+      await writer.write(enc.encode('SDCLEAR\n'));
+      let outcome = null;
+      const deadline = Date.now() + 15000;
+      while (Date.now() < deadline) {
+        const line = await readLine(Math.max(1, deadline - Date.now()));
+        if (line === null) break;
+        if (line === 'SD CLEAR OK') outcome = true;
+        else if (line === 'SD CLEAR ERR') outcome = false;
+        else if (line === 'DONE') break;
+      }
+      if (outcome === true) log('현재 게임의 스프라이트를 비웠습니다.');
+      else if (outcome === false) log('스프라이트 비우기 실패: 카드가 쓰기 금지/불량일 수 있습니다.');
+      else log('스프라이트 비우기 응답이 없습니다.');
+      await querySd();
+    } catch (error) {
+      log('오류: ' + error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   $('sd-reset').onclick = () => {
     localStorage.removeItem(RESUME.tamapoke);
+    localStorage.removeItem('tamahub_sd_tamapoke_v1');
     localStorage.removeItem(RESUME.tamadigi);
+    localStorage.removeItem(RESUME.tamaruto);
     localStorage.removeItem(RESUME.manual);
     log('진행 기록을 초기화했습니다. 다음 업로드는 처음부터 전송합니다.');
   };
@@ -702,6 +825,32 @@
       setBusy(false);
     }
   };
+
+  async function showVersions() {
+    const el = $('versions');
+    const items = [
+      ['Hub', 'manifest.json'],
+      ['Pokémon', 'manifest-ota0.json'],
+      ['Digimon', 'manifest-ota1.json'],
+      ['Naruto', 'manifest-ota2.json'],
+    ];
+    try {
+      const rows = await Promise.all(items.map(async ([label, file]) => {
+        try {
+          const response = await fetch(file);
+          if (!response.ok) throw new Error(String(response.status));
+          const data = await response.json();
+          return `${label} <b>v${data.version}</b>`;
+        } catch (e) {
+          return `${label} <b>v?</b>`;
+        }
+      }));
+      el.innerHTML = rows.join(' · ');
+    } catch (e) {
+      el.textContent = '버전 정보를 불러오지 못했습니다.';
+    }
+  }
+  showVersions();
 
   refreshButtons();
 })();

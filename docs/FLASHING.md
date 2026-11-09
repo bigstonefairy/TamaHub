@@ -96,7 +96,8 @@ $esp = Get-ChildItem "$env:LOCALAPPDATA\Arduino15\packages\esp32\tools\esptool_p
   0x8000   build\hub\hub.ino.partitions.bin `
   0x20000  build\hub\hub.ino.bin `
   0x320000 build\TamaPoke\TamaPoke.ino.bin `
-  0x620000 build\TamaDigi\TamaDigi.ino.bin
+  0x620000 build\TamaDigi\TamaDigi.ino.bin `
+  0x920000 build\TamaNaruto\TamaNaruto.ino.bin
 ```
 
 연결이 불안정하면 `--baud 921600`을 `--baud 115200`으로 낮춥니다.
@@ -115,6 +116,11 @@ NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
 & $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
   --flash-mode dio --flash-freq 80m --flash-size 16MB `
   0x620000 build\TamaDigi\TamaDigi.ino.bin
+
+# TamaNaruto만
+& $esp --chip esp32s3 --port COM5 --baud 921600 write-flash `
+  --flash-mode dio --flash-freq 80m --flash-size 16MB `
+  0x920000 build\TamaNaruto\TamaNaruto.ino.bin
 ```
 
 ### 2-4. 전체 주소표
@@ -126,7 +132,7 @@ NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
 | TamaHub | `0x20000` | `build\hub\hub.ino.bin` |
 | TamaPoke | `0x320000` | `build\TamaPoke\TamaPoke.ino.bin` |
 | TamaDigi | `0x620000` | `build\TamaDigi\TamaDigi.ino.bin` |
-| (예약) | `0x920000` | 추가 게임 슬롯 |
+| TamaNaruto | `0x920000` | `build\TamaNaruto\TamaNaruto.ino.bin` |
 
 **절대 쓰지 않는 것**
 
@@ -165,30 +171,35 @@ NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
 2. 업로드할 게임을 실행합니다.
    - Pokémon → **TamaPoke** 화면
    - Digimon → **TamaDigi** 화면
-3. 페이지에서 **보드 연결** → **Pokémon/Digimon 스프라이트 넣기**.
+   - Naruto → **TamaNaruto** 화면
+3. 페이지에서 **보드 연결** → 해당 게임의 **스프라이트 넣기**.
 4. 완료 후 전원을 껐다 켭니다.
 
 - **TamaHub 화면에서는 동작하지 않습니다.**
-- 연결하면 게임(TamaPoke/TamaDigi)을 자동 확인합니다. 구버전 펌웨어는
-  확인 명령이 없으므로 **두 게임을 모두 업데이트**하세요.
+- 연결하면 게임(TamaPoke/TamaDigi/TamaNaruto)을 자동 확인합니다. 구버전 펌웨어는
+  확인 명령이 없으므로 **세 게임을 모두 업데이트**하세요.
+- 연결 시 **SD 상태와 쓰기 테스트**를 수행합니다. `SD: 쓰기 실패`면 카드가
+  쓰기 금지/불량/가득 찬 상태이므로 PC에서 FAT32 포맷하거나 카드를 교체하세요.
 - SD가 인식되지 않으면 **SD 마운트 / 포맷**을 누르세요. 정상 카드는 데이터가
   유지되고, 인식할 수 없는 카드만 FAT32로 포맷됩니다.
-- Pokémon 약 40MB / Digimon 약 10MB. 중간에 끊기면 같은 버튼으로 이어서 전송합니다.
+- 공간이 부족하면 **스프라이트 비우기**로 현재 게임의 SD 폴더를 비울 수 있습니다.
+- Pokémon 약 105MB(기본+Gen3) / Digimon 약 10MB / Naruto 약 9MB. 중간에 끊기면
+  같은 버튼으로 이어서 전송합니다.
 - SD를 포맷/교체했다면 **진행 기록 초기화**를 누르세요.
 - 팩은 페이지와 같은 오리진(`sd/…`)에서 제공되므로 별도 서버가 필요 없습니다.
 
-> 예전 TamaDigi를 이미 플래시했다면 **Digimon 업데이트**를 한 번 실행하세요.
-> (업로드 재시도 시 파일이 덧붙는 문제 수정)
+> 이번 업로더는 `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` 명령을 사용합니다.
+> **Pokémon / Digimon / Naruto 펌웨어를 모두 최신 빌드로 업데이트**하세요.
 
 ### PC에서 복사
 
 ```powershell
 cd C:\Users\레오\Documents\ESP32
-.\tools\prepare_sd.ps1 -Drive E:\ -Game both
+.\tools\prepare_sd.ps1 -Drive E:\ -Game all
 ```
 
-`_repos\TamaPoke-main`, `_repos\TamaDigi-main`이 있으면 그대로 사용합니다.
-TamaDigi는 `tools\unpack_bundle.py`를 자동 실행해 팩을 풉니다.
+`_repos\TamaPoke-expanded`, `_repos\TamaDigi-main`, `_repos\TamaRuto-main`이
+있으면 그대로 사용합니다. 팩은 `tools\unpack_bundle.py`로 자동으로 풉니다.
 
 ### 수동
 
@@ -199,11 +210,15 @@ E:\tamapoke\mons\thumbs.bin
 E:\tamadigi\mons\p001.bin ...
 E:\tamadigi\mons\thumbs.bin
 E:\tamadigi\mons\.pack-1 ... .pack-5   (직접 복사 시 없어도 됨)
+
+E:\tamaruto\mons\p001.bin ...
+E:\tamaruto\mons\thumbs.bin
 ```
 
-- TamaPoke: 업스트림 `tools/sdcard/mons` 내용
-- TamaDigi: 업스트림에서 `python tools/unpack_bundle.py` 실행 후 `tools/sdcard/mons`
-- 두 게임의 파일 이름은 같지만 내용이 완전히 다르므로 **폴더를 섞지 마세요.**
+- TamaPoke(expanded): `_repos\TamaPoke-expanded\tools\sdcard\mons`
+- TamaDigi: `python tools/unpack_bundle.py` → `tools/sdcard/mons`
+- TamaNaruto: `_repos\TamaRuto-main`에서 `python tools/unpack_bundle.py` → `tools/sdcard/mons`
+- 게임별 파일 이름은 같지만 내용이 완전히 다르므로 **폴더를 섞지 마세요.**
 
 ---
 
@@ -218,6 +233,9 @@ E:\tamadigi\mons\.pack-1 ... .pack-5   (직접 복사 시 없어도 됨)
 | 첫 파일에서 멈춤 | **양쪽 펌웨어를 최신 빌드로 업데이트**했는지 확인. 페이지가 `WHOAMI`로 게임을 확인하고 `SDSTAT`로 카드 상태를 확인합니다 |
 | `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 Pokémon/Digimon 업데이트를 먼저 실행 |
 | `SD: 인식 안 됨` | 카드를 다시 넣고 **SD 마운트 / 포맷**. FAT32가 아니면 포맷이 필요할 수 있음 |
+| `SD: 쓰기 실패` | 카드가 쓰기 금지/불량/가득 참. 어댑터 LOCK 확인 → PC에서 FAT32 포맷 또는 카드 교체 |
+| Pokémon 업로드 공간 부족 | 약 105MB 필요. **스프라이트 비우기** → 그래도 부족하면 더 큰 카드 |
+| Naruto 카드가 `NOT INSTALLED` | 전체 설치 또는 **Naruto 업데이트**로 `ota_2`에 기록 |
 | 카드가 `NOT INSTALLED` | 전체 설치를 했는지, 올바른 슬롯에 썼는지 확인 |
 | 세이브가 사라짐 | `erase-flash` 또는 Erase 전체 설치를 했는지 확인 |
 | 스프라이트가 안 보임 | `/tamapoke/mons`, `/tamadigi/mons` 경로 확인 |

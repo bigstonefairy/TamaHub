@@ -433,13 +433,15 @@ MVP만 원하면 Phase 0~2를 주말에 할 수 있다. Phase 3부터가 “남�
 
 ---
 
-## 10. 구현 현황 (2026-11-08)
+## 10. 구현 현황 (2026-11-09)
 
 1. ✅ 아래쪽 버튼이 BOOT/GPIO0임을 확인 (`tools/button_test`)
-2. ✅ `partitions.csv` + TamaHub (카드 UI, 터치/BOOT 선택, 실행/복귀, `resumeAt`)
-3. ✅ TamaPoke/TamaDigi 최소 패치 (롱프레스 + 강제 저장 + 일시정지 + SD 경로)
-4. ✅ 통합 웹 설치 프로그램 (`web/dist`, 파트별 오프셋, NVS 미포함)
-5. ✅ GitHub Actions 빌드/크기·오프셋 검사
+2. ✅ `partitions.csv` + TamaHub (카드 UI, 터치/BOOT 선택, 실행/복귀, `resumeAt`, 버전 표시)
+3. ✅ TamaPoke(expanded v1.36.2) / TamaDigi / TamaNaruto 멀티부팅 패치
+   (롱프레스 + 강제 저장 + 일시정지 + SD 경로)
+4. ✅ 통합 웹 설치 프로그램 (4개 앱, 파트별 오프셋, NVS 미포함)
+5. ✅ Web Serial SD 업로더 (게임 식별, 쓰기 테스트, 여유 공간, 포맷/비우기)
+6. ✅ GitHub Actions 빌드/크기·오프셋 검사
 
-로컬 빌드 검증 완료: Hub 434,992 B · Poke 853,040 B · Digi 1,666,768 B
-(모두 3MB 슬롯 이내). 실제 기기 플래시/전환 soak 테스트는 남아 있다.
+로컬 빌드 검증 완료: Hub 435,008 B · Poke 730,496 B · Digi 1,667,600 B ·
+Naruto 1,719,680 B (모두 3MB 슬롯 이내). 실제 기기 플래시/전환 soak 테스트는 남아 있다.

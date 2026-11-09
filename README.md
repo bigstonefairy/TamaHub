@@ -4,28 +4,36 @@
 
 설치 페이지: <https://bigstonefairy.github.io/TamaHub/>
 
-Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)** 와
-**TamaDigi(Digimon)** 를 함께 즐기는 멀티게임 빌드입니다.
+Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
+**TamaDigi(Digimon)**, **TamaNaruto(Naruto)** 를 함께 즐기는 멀티게임 빌드입니다.
 
 - 부팅/전환할 때만 **게임 선택 허브(TamaHub)** 가 뜹니다.
 - 게임을 고르면 그 게임으로 재부팅하고, **다음 전원 ON부터는 마지막 게임으로 바로** 이어집니다.
 - 게임 중 **아래쪽 버튼(BOOT/GPIO0)을 2초 이상 누른 뒤 떼면** 저장하고 허브로 돌아옵니다.
-- 두 게임의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`)로 이미 분리되어 있어 서로 덮어쓰지 않습니다.
+- 세 게임의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
+  분리되어 있어 서로 덮어쓰지 않습니다.
+- **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.0`, 설치 페이지 상단에
+  Hub/Pokémon/Digimon/Naruto의 빌드 버전이 표시됩니다.
 - 다른 게임을 플레이하는 동안 비활성 게임은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
 
 ```
 전원 ON
   └─ otadata 확인
        ├─ 비어 있음 → factory = TamaHub  (첫 설치 / 게임에서 돌아온 직후)
-       └─ 게임 지정 → ota_0 = TamaPoke, ota_1 = TamaDigi  (마지막 게임 자동 재개)
+       └─ 게임 지정 → ota_0 = TamaPoke, ota_1 = TamaDigi, ota_2 = TamaNaruto
+                      (마지막 게임 자동 재개)
 
-TamaHub
-  ├─ Pokémon 카드  → ota_0
-  ├─ Digimon 카드  → ota_1
-  └─ Extra Slot    → ota_2 (v1에서는 비어 있음)
+TamaHub v1.0
+  ├─ Pokémon 카드  → ota_0  (TamaPoke expanded v1.36.2)
+  ├─ Digimon 카드  → ota_1  (TamaDigi v1.0.1)
+  └─ Naruto 카드   → ota_2  (TamaNaruto v1.2.0)
 
 게임 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
 ```
+
+> Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.36.2** (386마리)입니다.
+> 기본 팩(#1–251)과 Gen3 업데이트 팩(#252–386)을 **둘 다** SD에 넣어야 합니다.
+> SD 업로드 페이지가 두 팩을 자동으로 합쳐 전송합니다.
 
 ---
 
@@ -60,6 +68,7 @@ py -m http.server 8000 --directory web/dist
 | TamaHub | `0x20000` |
 | TamaPoke | `0x320000` |
 | TamaDigi | `0x620000` |
+| TamaNaruto | `0x920000` |
 
 > **`boot_app0.bin` 은 쓰지 않습니다.** 기본 Arduino 레이아웃에서는 `0xE000`에 쓰지만,
 > 이 빌드에서는 그 주소가 64KB NVS 내부입니다. 설치 프로그램은 파트별 오프셋만 기록합니다.
@@ -75,7 +84,8 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
   0x8000   build/hub/hub.ino.partitions.bin \
   0x20000  build/hub/hub.ino.bin \
   0x320000 build/TamaPoke/TamaPoke.ino.bin \
-  0x620000 build/TamaDigi/TamaDigi.ino.bin
+  0x620000 build/TamaDigi/TamaDigi.ino.bin \
+  0x920000 build/TamaNaruto/TamaNaruto.ino.bin
 ```
 
 게임만 업데이트할 때는 해당 앱만 씁니다. NVS와 다른 게임은 그대로 남습니다.
@@ -117,8 +127,8 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 ### 일시정지 정책
 
-- Pokémon을 플레이하는 동안 Digimon은 나이/스탯이 줄지 않습니다.
-- 기기를 꺼 둔 시간은 두 게임 모두 오프라인 진행으로 적용됩니다.
+- 한 게임을 플레이하는 동안 나머지 두 게임은 나이/스탯이 줄지 않습니다.
+- 기기를 꺼 둔 시간은 세 게임 모두 오프라인 진행으로 적용됩니다.
 - 허브에서 게임을 실행할 때 `resumeAt`을 대상 게임의 NVS에 기록하고, 게임은 시작 시 그 시각까지를 건너뜁니다.
 
 알려진 한계: **허브 화면에 머문 채 전원을 꺼 둔 시간**은 일시정지로 처리됩니다.
@@ -129,7 +139,7 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 ## 3. SD 카드
 
-두 게임 모두 스프라이트를 microSD에서 읽고, 경로가 겹치지 않도록 게임별 루트로 분리했습니다.
+세 게임 모두 스프라이트를 microSD에서 읽고, 경로가 겹치지 않도록 게임별 루트로 분리했습니다.
 
 ### 웹에서 바로 넣기 (권장)
 
@@ -140,26 +150,28 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 2. 업로드할 게임을 실행합니다.
    - Pokémon → **TamaPoke** 화면
    - Digimon → **TamaDigi** 화면
+   - Naruto → **TamaNaruto** 화면
 3. 페이지에서 **보드 연결** → 해당 게임의 **스프라이트 넣기** 버튼.
 4. 완료 후 전원을 껐다 켭니다.
 
 - **TamaHub 화면에서는 업로드가 안 됩니다.** 게임이 실행 중일 때만 SD와 시리얼을
   함께 제어할 수 있습니다.
-- 연결하면 실행 중인 게임을 자동으로 확인합니다. TamaPoke/TamaDigi가 아니면
-  연결을 해제하고 안내합니다.
+- 연결하면 실행 중인 게임을 자동으로 확인합니다. TamaPoke/TamaDigi/TamaNaruto가
+  아니면 연결을 해제하고 안내합니다.
+- 연결 시 **SD 상태와 쓰기 테스트**를 자동으로 수행합니다. `SD: 쓰기 실패`면
+  카드가 쓰기 금지/불량/가득 찬 상태입니다. PC에서 FAT32 포맷하거나 카드를 교체하세요.
 - SD가 인식되지 않으면 **SD 마운트 / 포맷**을 누르세요. 정상 카드는 데이터가
-  유지되고, 인식할 수 없는 카드만 FAT32로 포맷됩니다. (포맷 시 두 게임 스프라이트가
-  모두 지워질 수 있음)
-- Pokémon 약 40MB, Digimon 약 10MB. 중간에 끊기면 USB를 다시 연결하고 같은
-  버튼을 누르면 이미 보낸 파일은 건너뜁니다.
+  유지되고, 인식할 수 없는 카드만 FAT32로 포맷됩니다.
+- 공간이 부족하면 **스프라이트 비우기**로 현재 게임의 SD 폴더를 비울 수 있습니다.
+- Pokémon은 **약 105MB**(기본 + Gen3 업데이트 2개 팩), Digimon 약 10MB,
+  Naruto 약 9MB입니다. 중간에 끊기면 USB를 다시 연결하고 같은 버튼을 누르면
+  이미 보낸 파일은 건너뜁니다.
 - SD를 포맷했거나 카드를 바꿨다면 페이지의 **진행 기록 초기화**를 누르세요.
 - 스프라이트 팩은 `web/sd/`에 포함되어 Pages에서 페이지와 같은 오리진으로
   제공됩니다. (CORS 문제 없음)
 
-> **이미 예전 TamaDigi를 플래시했다면** 페이지의 **Digimon 업데이트**를 한 번
-> 실행하세요. 업로드가 중단됐을 때 파일이 덧붙는 문제를 수정한 빌드입니다.
-> 또한 이번 업로더는 `WHOAMI`/`SDSTAT`/`SDFORMAT` 명령을 사용하므로
-> **Pokémon과 Digimon 펌웨어를 모두 최신 빌드로 업데이트**해야 합니다.
+> 이번 업로더는 `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` 명령을 사용합니다.
+> **Pokémon / Digimon / Naruto 펌웨어를 모두 최신 빌드로 업데이트**해야 합니다.
 > (게임별 업데이트는 세이브를 유지합니다.)
 
 ### 수동 준비
@@ -173,12 +185,19 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 /tamadigi/mons/ps001.bin
 /tamadigi/mons/thumbs.bin
 /tamadigi/mons/.pack-1 ... .pack-5   (직접 복사 시 없어도 됨)
+
+/tamaruto/mons/p001.bin
+/tamaruto/mons/ps001.bin
+/tamaruto/mons/thumbs.bin
 ```
 
-- TamaPoke: 업스트림 `tools/sdcard/mons` 내용을 `/tamapoke/mons`로 복사.
+- TamaPoke(expanded): `_repos\TamaPoke-expanded`의 `tools/sdcard/mons` 내용을
+  `/tamapoke/mons`로 복사. (기본 251 + Gen3 업데이트 252~386, 총 773개 파일)
 - TamaDigi: 업스트림 체크아웃에서 `python tools/unpack_bundle.py`를 실행하면
   `tools/sdcard/mons`가 복원됩니다. 그 내용을 `/tamadigi/mons`로 복사하세요.
   (`web/sprites-ver*.pak` 5개를 한 번에 풀어 `thumbs.bin`까지 만듭니다.)
+- TamaNaruto: `python tools/unpack_bundle.py` → `tools/sdcard/mons` 내용을
+  `/tamaruto/mons`로 복사. (마을 팩 4개, 67개 파일)
 - 예전처럼 `/mons` 하나에 모든 파일이 있던 카드라면, 게임별로 나눠서 복사해야 합니다.
   파일 이름은 같지만 내용이 완전히 다릅니다.
 - TamaPoke의 SD 마운트는 이제 **실패해도 포맷하지 않습니다** (`formatIfUnreadable=false`).
@@ -190,10 +209,12 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 ```powershell
 .\tools\prepare_sd.ps1 -Drive E:\ -Game pokemon
 .\tools\prepare_sd.ps1 -Drive E:\ -Game digimon
+.\tools\prepare_sd.ps1 -Drive E:\ -Game naruto
+.\tools\prepare_sd.ps1 -Drive E:\ -Game all
 ```
 
-`prepare_sd.ps1`은 `_repos\TamaDigi-main`이 있으면 `unpack_bundle.py`를 자동으로
-실행한 뒤 복사합니다.
+`prepare_sd.ps1`은 `_repos\TamaPoke-expanded`, `_repos\TamaDigi-main`,
+`_repos\TamaRuto-main`의 팩을 자동으로 풀어 복사합니다.
 
 ---
 
@@ -293,7 +314,7 @@ git push -u origin main
 ```
 
 GitHub에서 **Settings → Pages → Build and deployment → Source: GitHub Actions**로
-바꿉니다. `main`에 푸시할 때마다 `.github/workflows/build.yml`이 세 앱을 빌드하고
+바꿉니다. `main`에 푸시할 때마다 `.github/workflows/build.yml`이 네 앱을 빌드하고
 `web/dist`를 Pages에 배포합니다. 배포가 끝나면 아래 주소가 설치 페이지가 됩니다.
 
 ```
@@ -316,17 +337,20 @@ ota_1,    app,  ota_1,   0x620000, 0x300000,
 ota_2,    app,  ota_2,   0x920000, 0x300000,
 ```
 
-- 앱 슬롯은 각 3MB. TamaPoke 약 0.85MB, TamaDigi 약 1.67MB로 여유가 있습니다.
-- `nvs`는 64KB. 두 게임이 함께 써도 TamaDigi의 “NVS 공간 부족” 경고가 뜨지 않습니다.
+- 앱 슬롯은 각 3MB. TamaPoke 약 0.73MB, TamaDigi 약 1.67MB, TamaNaruto 약 1.72MB로 여유가 있습니다.
+- `nvs`는 64KB. 세 게임이 함께 써도 TamaDigi의 “NVS 공간 부족” 경고가 뜨지 않습니다.
 - **이 표를 바꾸면 세이브가 사라집니다.** `tools/check_layout.py`가 v1 값과 다르면 빌드를 거부합니다.
 
-### 세 번째 게임 추가
+### TamaNaruto (slot 3)
 
-1. 새 앱을 `ota_2` 오프셋(`0x920000`)에 플래시.
-2. `hub/hub.ino`의 `slots[]`에서 `EXTRA SLOT` 항목의 `ns`(NVS 네임스페이스), 이름, 색을 채움.
-3. 허브만 다시 빌드해서 `0x20000`에 플래시.
+`ota_2` (`0x920000`)에 TamaNaruto v1.2.0이 들어갑니다. 허브의 세 번째 카드는
+`NARUTO`이며 NVS 네임스페이스는 `tamanaruto`, SD 루트는 `/tamaruto/mons`입니다.
 
-`ota_2` 슬롯이 비어 있으면 허브는 자동으로 `NOT INSTALLED`로 표시합니다.
+### 네 번째 게임 추가
+
+v1 레이아웃에는 **빈 슬롯이 없습니다.** 추가하려면 `partitions.csv`를 바꿔
+NVS 뒤에 슬롯을 더 만들어야 하며, 이때 기존 세이브/앱을 백업하고 전체 재설치해야
+합니다. `tools/check_layout.py`의 `EXPECTED`도 함께 수정해야 합니다.
 
 ---
 
@@ -337,11 +361,14 @@ ota_2,    app,  ota_2,   0x920000, 0x300000,
 | 화면이 검은색 | 부팅 중 BOOT를 눌렀는지 확인. 다운로드 모드면 USB 재연결 후 재설치 |
 | 허브로 안 돌아감 | 버튼을 2초 누른 뒤 **완전히 떼야** 재부팅합니다 |
 | 게임 카드가 `NOT INSTALLED` | 해당 슬롯에 앱이 없거나 이미지가 손상됨. 웹 설치 프로그램으로 다시 설치 |
-| `SLOT IS EMPTY` | 빈 `ota_2`(Extra) 카드를 실행함. 정상 동작이며 허브로 돌아옵니다 |
+| `SLOT IS EMPTY` | Naruto(`ota_2`) 슬롯이 비어 있음. 전체 설치 또는 Naruto 업데이트 |
 | 게임에서 `HUB MISSING` | `factory` 슬롯이 비었거나 손상됨. 허브를 `0x20000`에 다시 설치 |
-| SD 업로드가 첫 파일에서 멈춤 | Pokémon/Digimon 펌웨어를 **모두 최신 빌드로 업데이트**. 페이지가 게임(`WHOAMI`)과 SD(`SDSTAT`)를 확인합니다 |
-| `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 Pokémon/Digimon 업데이트를 먼저 실행 |
+| SD 업로드가 첫 파일에서 멈춤 | Pokémon/Digimon/Naruto 펌웨어를 **모두 최신 빌드로 업데이트**. 페이지가 `WHOAMI`/`SDSTAT`/`SDTEST`로 확인합니다 |
+| `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 세 게임 업데이트를 먼저 실행 |
 | `SD: 인식 안 됨` | 카드를 다시 넣고 **SD 마운트 / 포맷**. FAT32가 아니면 포맷이 필요할 수 있음 |
+| `SD: 쓰기 실패` | 카드가 쓰기 금지/불량/가득 참. 어댑터 LOCK 확인 → PC에서 FAT32 포맷 또는 카드 교체 |
+| Naruto 카드가 `NOT INSTALLED` | **허브 업데이트** + **Naruto 업데이트**를 실행 (`ota_2`) |
+| 허브에 Naruto 카드가 없음 | **허브 업데이트**(`0x20000`)를 실행 |
 | 세이브가 사라짐 | 전체 설치(Erase)를 했는지 확인. 게임별 업데이트는 NVS를 건드리지 않음 |
 | SD 스프라이트가 안 보임 | `/tamapoke/mons`, `/tamadigi/mons` 경로 확인. 게임별로 파일이 다름 |
 | 부팅 루프 | 시리얼 115200으로 로그 확인. 필요하면 `erase_flash` 후 전체 재설치 |
@@ -357,8 +384,9 @@ ota_2,    app,  ota_2,   0x920000, 0x300000,
 
 ```
 hub/                  TamaHub 스케치 (factory)
-games/TamaPoke/       업스트림 + 최소 패치
-games/TamaDigi/       업스트림 + 최소 패치
+games/TamaPoke/       TamaPoke expanded v1.36.2 + 멀티부팅 패치
+games/TamaDigi/       TamaDigi v1.0.1 + 멀티부팅 패치
+games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
 partitions.csv        동결된 v1 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
                       (setup_windows_toolchain.ps1: 한글 경로 우회)
@@ -366,7 +394,7 @@ web/                  GitHub Pages 설치 페이지
 web/sd/               웹 SD 업로더용 스프라이트 팩 (TPAK)
 docs/                 설계, 하드웨어, 패치, 업스트림 기록
 CHANGELOG.md          릴리스 노트
-.github/workflows/    CI (3개 앱 빌드 + 크기 검사 + Pages)
+.github/workflows/    CI (4개 앱 빌드 + 크기 검사 + Pages)
 ```
 
 패치 목록과 이유는 [`docs/PATCHES.md`](docs/PATCHES.md),
