@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Build TamaHub + both games and verify the partition layout.
+    Build TamaHub + all games and verify the partition layout.
 
 .DESCRIPTION
     Hub is built with PartitionScheme=custom, so Arduino copies

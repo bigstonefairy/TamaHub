@@ -7,10 +7,20 @@
 
 // Multi-game: each game owns a top-level directory; upstream both use /mons.
 #define MONS_ROOT "/tamapoke/mons"
+#define MONS_PARENT "/tamapoke"
 
 bool sdReady = false;
 bool sdDirty = false;
 SdThumbs thumbs;
+
+// mkdir() creates one level only.  A freshly formatted card has no
+// /tamapoke parent, so creating /tamapoke/mons alone fails and every write
+// reports ERR.  Create both levels explicitly.
+static bool ensureMonsRoot() {
+  if (!SD_MMC.exists(MONS_PARENT)) SD_MMC.mkdir(MONS_PARENT);
+  if (!SD_MMC.exists(MONS_ROOT)) SD_MMC.mkdir(MONS_ROOT);
+  return SD_MMC.exists(MONS_ROOT);
+}
 
 bool PmdMon::load(uint16_t dexNum, bool shiny) {
   unload();
@@ -137,7 +147,7 @@ bool sdBegin() {
   sdReady = SD_MMC.begin("/sdcard", true /* modo 1-bit */, false /* nunca formatear */);
   if (sdReady) {
     Serial.printf("SD montada: %llu MB\n", SD_MMC.cardSize() / (1024ULL * 1024ULL));
-    SD_MMC.mkdir(MONS_ROOT);
+    ensureMonsRoot();
   } else {
     Serial.println("SD no detectada (el juego usa los sprites de flash)");
   }
@@ -237,7 +247,7 @@ bool sdSerialCommand(const String &line) {
   }
   if (line == "SDTEST") {
     bool ok = false;
-    if (sdReady) {
+    if (sdReady && ensureMonsRoot()) {
       File f = SD_MMC.open(MONS_ROOT "/.sdtest", FILE_WRITE);
       if (f) {
         uint8_t test[512];
@@ -253,7 +263,7 @@ bool sdSerialCommand(const String &line) {
   }
   if (line == "SDCLEAR") {
     bool ok = sdReady;
-    if (ok) {
+    if (ok && SD_MMC.exists(MONS_ROOT)) {
       File dir = SD_MMC.open(MONS_ROOT);
       if (dir) {
         File e;
@@ -265,6 +275,8 @@ bool sdSerialCommand(const String &line) {
       } else {
         ok = false;
       }
+    } else if (ok) {
+      ok = true;  // nothing to clear on a fresh card
     }
     if (ok) {
       thumbs.unload();
@@ -278,7 +290,7 @@ bool sdSerialCommand(const String &line) {
     SD_MMC.end();
     sdReady = SD_MMC.begin("/sdcard", true /* modo 1-bit */, true /* formatea si no monta */);
     if (sdReady) {
-      SD_MMC.mkdir(MONS_ROOT);
+      ensureMonsRoot();
       thumbs.unload();
       sdDirty = true;
     }
@@ -297,6 +309,10 @@ bool sdSerialCommand(const String &line) {
     if (!path.startsWith("/")) path = "/" + path;
     if (path.startsWith("/mons/")) path = String(MONS_ROOT) + path.substring(5);
     if (!path.startsWith(MONS_ROOT "/") || path.indexOf("..") >= 0) {
+      Serial.println("ERR");
+      return true;
+    }
+    if (!ensureMonsRoot()) {
       Serial.println("ERR");
       return true;
     }

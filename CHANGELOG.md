@@ -17,6 +17,10 @@ Four-app build: expanded Pokémon, Digimon, Naruto, and version-aware SD tools.
 - **SD diagnostics**: the page now runs `SDTEST` (512-byte write/read/delete)
   before enabling uploads, shows free space, reports the failing block on a
   failed PUT, and offers per-game **SDCLEAR** to free space without formatting.
+- **SD root creation bug fix**: the two-level roots (`/tamapoke/mons`,
+  `/tamadigi/mons`, `/tamaruto/mons`) need their parent directory created too.
+  A freshly formatted card previously failed every write with `SDTEST ERR`;
+  now the parent and child are created on mount, format and before each PUT.
 - **Four-app installer**: full install and per-slot updates for `factory`,
   `ota_0`, `ota_1`, `ota_2`; CI builds all four and checks all offsets.
 - **Sprite packs**: `web/sd/` now contains 11 bundles (122.7 MB): Pokémon
@@ -35,9 +39,9 @@ Four-app build: expanded Pokémon, Digimon, Naruto, and version-aware SD tools.
 | App | Version | Size | Slot |
 |---|---|---:|---|
 | TamaHub | 1.0 | 435,008 B | `0x20000` |
-| TamaPoke | 1.36.2 | 730,496 B | `0x320000` |
-| TamaDigi | 1.0.1 | 1,667,600 B | `0x620000` |
-| TamaNaruto | 1.2.0 | 1,719,680 B | `0x920000` |
+| TamaPoke | 1.36.2 | 730,608 B | `0x320000` |
+| TamaDigi | 1.0.1 | 1,667,744 B | `0x620000` |
+| TamaNaruto | 1.2.0 | 1,719,824 B | `0x920000` |
 
 ### Known limitations
 

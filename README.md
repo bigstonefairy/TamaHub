@@ -173,6 +173,9 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 > 이번 업로더는 `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` 명령을 사용합니다.
 > **Pokémon / Digimon / Naruto 펌웨어를 모두 최신 빌드로 업데이트**해야 합니다.
 > (게임별 업데이트는 세이브를 유지합니다.)
+>
+> 예전 빌드는 새로 포맷한 카드에서 `/tamapoke`, `/tamadigi`, `/tamaruto`
+> 상위 폴더를 만들지 못해 쓰기 테스트가 실패했습니다. 최신 빌드에서 수정되었습니다.
 
 ### 수동 준비
 

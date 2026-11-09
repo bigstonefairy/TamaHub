@@ -470,7 +470,7 @@
         log(`SD: READY (${freeMB.toFixed(1)} MB free, write OK)`);
         setCardStatus(`SD: READY · ${freeMB.toFixed(0)}MB free`, 'on');
       } else if (sdWritable === false) {
-        log('SD: 쓰기 테스트 실패 — 카드가 쓰기 금지/불량이거나 가득 찼습니다. PC에서 FAT32 포맷 또는 카드 교체가 필요합니다.');
+        log('SD: 쓰기 테스트 실패 — 카드가 쓰기 금지/불량/가득 참이거나 SD 폴더를 만들지 못했습니다.');
         setCardStatus('SD: 쓰기 실패', 'warn');
       } else {
         log('SD: READY (쓰기 테스트 응답 없음)');

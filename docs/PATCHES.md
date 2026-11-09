@@ -76,6 +76,12 @@ truncate a name. `PUT` still accepts the upstream `mons/xxx.bin` form and
 rewrites it to the game's own root, so the original upload tools keep working
 without being able to write into the other game's sprites.
 
+`SD_MMC.mkdir()` creates **one level only**. A freshly formatted card has no
+`/tamapoke`, `/tamadigi` or `/tamaruto` parent, so `mkdir("/.../mons")` failed
+and every write returned `ERR`. Each game now creates the parent and child in
+`ensureMonsRoot()`, called from `sdBegin()`, `SDFORMAT`, `SDTEST`, `SDCLEAR` and
+`PUT`.
+
 ## TamaPoke (expanded fork v1.36.2)
 
 | File | Change |

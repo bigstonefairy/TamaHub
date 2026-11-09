@@ -126,7 +126,7 @@ git commit -m "설명"
 git push
 ```
 
-- GitHub Actions가 자동으로 세 앱을 빌드하고 파티션/크기/설치 오프셋을 검사합니다.
+- GitHub Actions가 자동으로 네 앱을 빌드하고 파티션/크기/설치 오프셋을 검사합니다.
 - 성공하면 Pages의 설치 페이지가 새 빌드로 갱신됩니다.
 - 기기에서는 **게임별 업데이트** 버튼으로 해당 슬롯만 다시 쓰면 세이브가 유지됩니다.
 
@@ -135,7 +135,7 @@ git push
 - `tools/check_layout.py` — v1 파티션 표와 앱 크기
 - `tools/check_installer.py` — 매니페스트가 NVS(`0x9000..0x18FFF`) 또는
   `0xE000`을 건드리면 실패
-- 세 앱 컴파일 (Hub/Poke/Digi)
+- 네 앱 컴파일 (Hub/Poke/Digi/Naruto)
 
 ---
 
@@ -157,6 +157,6 @@ git push
 ## 6. 라이선스 주의
 
 - **코드**: MIT (`LICENSE`)
-- **Pokémon/Digimon 스프라이트**: 각 권리자 소유, PMD 스프라이트는 CC BY-NC
+- **Pokémon/Digimon/Naruto 스프라이트**: 각 권리자 소유, PMD 스프라이트는 CC BY-NC
 - **비상업** 팬 프로젝트입니다. 기기 판매, 후원 보상, 광고 수익화에 사용하지 마세요.
-- 스프라이트 팩은 저장소에 커밋하지 말고 SD 카드/릴리스로만 배포하세요.
+- 스프라이트 팩은 `web/sd/`에 포함되어 Pages에서 제공됩니다. 재배포 시에도 비상업 조건을 유지하세요.

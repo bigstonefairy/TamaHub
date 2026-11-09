@@ -7,6 +7,14 @@
 
 // Multi-game: each game owns a top-level directory; upstream uses /mons.
 #define MONS_ROOT "/tamaruto/mons"
+#define MONS_PARENT "/tamaruto"
+
+// mkdir() creates one level only; create the parent too.
+static bool ensureMonsRoot() {
+  if (!SD_MMC.exists(MONS_PARENT)) SD_MMC.mkdir(MONS_PARENT);
+  if (!SD_MMC.exists(MONS_ROOT)) SD_MMC.mkdir(MONS_ROOT);
+  return SD_MMC.exists(MONS_ROOT);
+}
 
 bool sdReady = false;
 bool sdDirty = false;
@@ -169,7 +177,7 @@ bool sdBegin(bool formatIfUnreadable) {
   sdReady = SD_MMC.begin("/sdcard", true /* modo 1-bit */, formatIfUnreadable);
   if (sdReady) {
     Serial.printf("SD montada: %llu MB\n", SD_MMC.cardSize() / (1024ULL * 1024ULL));
-    SD_MMC.mkdir(MONS_ROOT);
+    ensureMonsRoot();
     sdScanRegionArt();
   } else {
     Serial.println(formatIfUnreadable
@@ -313,7 +321,7 @@ bool sdSerialCommand(const String &line) {
   }
   if (line == "SDTEST") {
     bool ok = false;
-    if (sdReady) {
+    if (sdReady && ensureMonsRoot()) {
       File f = SD_MMC.open(MONS_ROOT "/.sdtest", FILE_WRITE);
       if (f) {
         uint8_t test[512];
@@ -329,7 +337,7 @@ bool sdSerialCommand(const String &line) {
   }
   if (line == "SDCLEAR") {
     bool ok = sdReady;
-    if (ok) {
+    if (ok && SD_MMC.exists(MONS_ROOT)) {
       File dir = SD_MMC.open(MONS_ROOT);
       if (dir) {
         File e;
@@ -341,6 +349,8 @@ bool sdSerialCommand(const String &line) {
       } else {
         ok = false;
       }
+    } else if (ok) {
+      ok = true;
     }
     if (ok) {
       sdDirty = true;
@@ -373,6 +383,10 @@ bool sdSerialCommand(const String &line) {
     if (!path.startsWith("/")) path = "/" + path;
     if (path.startsWith("/mons/")) path = String(MONS_ROOT) + path.substring(5);
     if (!path.startsWith(MONS_ROOT "/") || path.indexOf("..") >= 0) {
+      Serial.println("ERR");
+      return true;
+    }
+    if (!ensureMonsRoot()) {
       Serial.println("ERR");
       return true;
     }

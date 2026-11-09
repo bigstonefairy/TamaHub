@@ -47,13 +47,14 @@
 
 ## 3. microSD
 
-- 두 게임 모두 **SD_MMC 1-bit** 모드로 마운트합니다. FAT32로 포맷된 카드를
+- 세 게임 모두 **SD_MMC 1-bit** 모드로 마운트합니다. FAT32로 포맷된 카드를
   사용하세요.
 - 스프라이트 경로가 게임별로 분리되어 있습니다.
 
   ```
   /tamapoke/mons/…
   /tamadigi/mons/…
+  /tamaruto/mons/…
   ```
 
 - TamaPoke는 마운트 실패 시 더 이상 카드를 포맷하지 않습니다.
@@ -91,6 +92,7 @@
 | TamaHub (factory) | `0x20000` |
 | TamaPoke (ota_0) | `0x320000` |
 | TamaDigi (ota_1) | `0x620000` |
+| TamaNaruto (ota_2) | `0x920000` |
 | 추가 슬롯 (ota_2) | `0x920000` |
 
 - 최초 설치: 웹 설치 프로그램에서 **Erase** 포함 전체 설치.

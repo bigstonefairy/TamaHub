@@ -190,6 +190,9 @@ NVS와 다른 게임은 건드리지 않고 해당 슬롯만 다시 씁니다.
 
 > 이번 업로더는 `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR` 명령을 사용합니다.
 > **Pokémon / Digimon / Naruto 펌웨어를 모두 최신 빌드로 업데이트**하세요.
+>
+> 예전 빌드는 새 카드에서 `/tamapoke`, `/tamadigi`, `/tamaruto` 상위 폴더를
+> 만들지 못해 `SDTEST ERR`/`PUT ERR`이 났습니다. 최신 빌드에서 수정되었습니다.
 
 ### PC에서 복사
 
@@ -231,7 +234,7 @@ E:\tamaruto\mons\thumbs.bin
 | 화면이 검은색 | 부팅 중 BOOT를 눌렀는지 확인. USB 다시 연결 |
 | 웹 설치 페이지에서 포트가 안 보임 | Chrome/Edge인지, `https://` 또는 `localhost`인지 확인 |
 | 첫 파일에서 멈춤 | **양쪽 펌웨어를 최신 빌드로 업데이트**했는지 확인. 페이지가 `WHOAMI`로 게임을 확인하고 `SDSTAT`로 카드 상태를 확인합니다 |
-| `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 Pokémon/Digimon 업데이트를 먼저 실행 |
+| `게임을 확인할 수 없습니다` | TamaHub 화면이거나 구버전 펌웨어. 게임을 실행하고 Pokémon/Digimon/Naruto 업데이트를 먼저 실행 |
 | `SD: 인식 안 됨` | 카드를 다시 넣고 **SD 마운트 / 포맷**. FAT32가 아니면 포맷이 필요할 수 있음 |
 | `SD: 쓰기 실패` | 카드가 쓰기 금지/불량/가득 참. 어댑터 LOCK 확인 → PC에서 FAT32 포맷 또는 카드 교체 |
 | Pokémon 업로드 공간 부족 | 약 105MB 필요. **스프라이트 비우기** → 그래도 부족하면 더 큰 카드 |
