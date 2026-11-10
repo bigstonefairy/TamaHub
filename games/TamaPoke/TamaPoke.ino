@@ -39,7 +39,7 @@
 #endif
 
 // Version shown by the TamaHub installer page.
-#define TAMAHUB_APP_VERSION "1.36.2"
+#define TAMAHUB_APP_VERSION "1.37.0"
 
 #if defined(TAMAPOKE_LOCAL_TEST) && defined(TAMAPOKE_GEN3_RELEASE)
 #error "TAMAPOKE_LOCAL_TEST and TAMAPOKE_GEN3_RELEASE are mutually exclusive"
@@ -48,9 +48,9 @@
 #error "Gen-3 source requires an explicit local-test or release build profile"
 #endif
 #ifdef TAMAPOKE_LOCAL_TEST
-#define FW_VERSION "1.36.2-hoenn-walk-local"
+#define FW_VERSION "1.37.0-hoenn-walk-local"
 #elif defined(TAMAPOKE_GEN3_RELEASE)
-#define FW_VERSION "1.36.2"
+#define FW_VERSION "1.37.0"
 #else
 #define FW_VERSION "1.35.3-soft-step"
 #endif
@@ -114,6 +114,8 @@ ExpeditionSite expeditionSiteChoice = EXP_SITE_COAST;
 bool clockOpen = false;       // pantalla de ajuste de hora (deslizar abajo)
 int clockH = 12, clockM = 0;  // hora en edicion
 bool powerSave = false;       // ahorro opcional: off por defecto
+bool easyMode = false;        // barras siempre llenas + combates/expediciones ganados
+uint8_t gameSpeed = 1;        // 1x / 2x / 3x: reloj de juego acelerado
 bool helpOpen = false;
 uint8_t helpPage = 0;
 bool uiDirty = true;
@@ -288,6 +290,15 @@ uint16_t textW(const char *s, uint8_t size) {
   return w;
 }
 
+// Alto real de una linea. La 5x7 ocupa 8 px por escala; la unifont coreana
+// ocupa 16 px por escala real (setSize divide por 2), asi que la cuenta no
+// puede ser 8*n: en coreano setSize(3) se queda en 16 px, no en 24.
+int textH(uint8_t size) {
+  if (!gCjkFont) return 8 * size;
+  const uint8_t real = size >= CJK_SIZE_DIV ? size / CJK_SIZE_DIV : 1;
+  return 16 * real;
+}
+
 int centerX(const char *s, uint8_t size) { return CX - textW(s, size) / 2; }
 
 // La unifont a escala reducida deja trazos de 1 px; con el coreano se repinta
@@ -317,6 +328,38 @@ void setPowerSave(bool on) {
   Preferences p;
   p.begin("tamapoke", false);
   p.putBool("psave", powerSave);
+  p.end();
+}
+
+// Modo facil y velocidad. Van en la misma NVS que el resto de ajustes, no en
+// el guardado del bicho: cambiar de partida no debe devolver la dificultad.
+void loadGameOptions() {
+  Preferences p;
+  p.begin("tamapoke", true);
+  easyMode = p.getBool("easy", false);
+  gameSpeed = p.getUChar("gspd", 1);
+  p.end();
+  if (gameSpeed < 1 || gameSpeed > 3) gameSpeed = 1;
+  pet.easyMode = easyMode;
+  pet.setGameSpeed(gameSpeed);
+}
+
+void setEasyMode(bool on) {
+  easyMode = on;
+  pet.easyMode = on;
+  if (easyMode) pet.topUpCare();  // se ve al instante, sin esperar al tick
+  Preferences p;
+  p.begin("tamapoke", false);
+  p.putBool("easy", easyMode);
+  p.end();
+}
+
+void setGameSpeed(uint8_t speed) {
+  gameSpeed = speed < 1 ? 1 : speed > 3 ? 3 : speed;
+  pet.setGameSpeed(gameSpeed);
+  Preferences p;
+  p.begin("tamapoke", false);
+  p.putUChar("gspd", gameSpeed);
   p.end();
 }
 
@@ -497,6 +540,7 @@ void setup() {
     e = rtcEpoch();             // solo importan las diferencias)
     Serial.println("RTC sin hora: sembrado, sin progresion offline esta vez");
   }
+  loadGameOptions();  // antes de syncClock: la velocidad tambien escala el offline
   pet.syncClock(e);
   loadPowerSave();
   imuBegin();
@@ -3163,12 +3207,17 @@ void finishBattle() {
   if (battleResolved) return;
   battleResolved = true;
   battleDirty = true;
+  // Modo facil: la derrota no cuenta. Se marca como victoria ANTES de repartir
+  // premios, para que pantalla, vinculo, racha y medallas vean un combate
+  // ganado y no uno perdido.
+  if (easyMode) battleTurn.playerWon = true;
   if (battleTurn.playerWon) {
     bool closeWin = battleRun.playerHp <= battleRun.playerMaxHp / 3;
     battleReward = pet.applyBattleWin(battleDex, closeWin);
     battleCatchOffered = true;
     battleRespectCatch = false;
     battleCatchChance = pet.catchChanceForWild(battleDex, battleLevel, battlePlayer.level, closeWin);
+    if (easyMode) battleCatchChance = 100;  // la captura tambien esta garantizada
     sfxPlay(SFX_BATTLE_WIN);
   } else {
     battleReward = {};
@@ -3231,7 +3280,13 @@ void battleTap(int16_t x, int16_t y) {
         bool closeWin = battleRun.playerHp <= battleRun.playerMaxHp / 3;
         battleCatchTried = true;
         battleCatchDone = true;
-        if (battleRespectCatch) {
+        if (easyMode) {
+          // Modo facil: la captura no se sortea. registerCaught() es lo mismo
+          // que hace tryCatchWild() al acertar (dex, diario, premios y save).
+          pet.registerCaught(battleDex, battleShiny);
+          battleCatchSuccess = true;
+          battleCatchChance = 100;
+        } else if (battleRespectCatch) {
           battleCatchSuccess = pet.tryRespectCatchWild(battleDex, battleLevel, battlePlayer.level,
                                                        (uint8_t)random(100), battleShiny);
           battleCatchChance = pet.respectCatchChanceForWild(battleDex, battleLevel, battlePlayer.level);
@@ -3661,11 +3716,17 @@ void drawClockBtn(int x, int y, const char *l) {
   gfx->drawRoundRect(x, y, 58, 58, 12, UI_INK);
   gfx->setTextColor(UI_INK);
   setSize(4);
-  setCur(x + 17, y + 15);
+  setCur(x + (58 - textW(l, 4)) / 2, y + 15);
   printT(l);
 }
 
-// pildoras de idioma centradas en y; rellena la activa
+// Pildoras de ajustes. La fila de arriba es la nueva (modo facil + velocidad);
+// la de abajo conserva sonido, ahorro e idioma donde estaban.
+#define EZ_PILL_Y 256
+#define EASY_PILL_X 24
+#define EASY_PILL_W 200
+#define SPEED_PILL_X 236
+#define SPEED_PILL_W 196
 #define LANG_PILL_Y 296
 #define LANG_PILL_H 30
 #define LANG_PILL_X 336          // pildora de idioma (cicla EN/KO al tocar)
@@ -3830,16 +3891,32 @@ void renderClock() {
   setCur(CX - 105, 108);
   printT(t);
 
-  drawClockBtn(104, 190, "-");  // hora -
-  drawClockBtn(170, 190, "+");  // hora +
-  drawClockBtn(252, 190, "-");  // min -
-  drawClockBtn(318, 190, "+");  // min +
+  // "-H/+H/-M/+M" sustituye a las etiquetas HOUR/MIN: libera la franja que
+  // ahora ocupa la fila del modo facil y la velocidad, y sigue diciendo cual
+  // boton mueve cada campo.
+  drawClockBtn(104, 190, "-H");  // hora -
+  drawClockBtn(170, 190, "+H");  // hora +
+  drawClockBtn(252, 190, "-M");  // min -
+  drawClockBtn(318, 190, "+M");  // min +
+
+  // modo facil: barras siempre llenas y combates/expediciones ganados
+  const char *el = easyMode ? T(S_EZMODE_ON) : T(S_EZMODE_OFF);
+  gfx->fillRoundRect(EASY_PILL_X, EZ_PILL_Y, EASY_PILL_W, LANG_PILL_H, 8, easyMode ? UI_BAR_OK : UI_WHITE);
+  gfx->drawRoundRect(EASY_PILL_X, EZ_PILL_Y, EASY_PILL_W, LANG_PILL_H, 8, UI_INK);
+  gfx->setTextColor(easyMode ? UI_BG_DAY : UI_INK);
   setSize(2);
-  gfx->setTextColor(UI_TRACK);
-  setCur(120, 256);
-  printT(T(S_HOUR));
-  setCur(276, 256);
-  printT(T(S_MIN));
+  setCur(EASY_PILL_X + (EASY_PILL_W - textW(el, 2)) / 2, EZ_PILL_Y + 7);
+  printT(el);
+
+  // velocidad de juego: 1x -> 2x -> 3x al tocar
+  char sp[18];
+  snprintf(sp, sizeof(sp), T(S_SPEED_FMT), (unsigned)gameSpeed);
+  gfx->fillRoundRect(SPEED_PILL_X, EZ_PILL_Y, SPEED_PILL_W, LANG_PILL_H, 8, gameSpeed > 1 ? UI_BAR_WARN : UI_WHITE);
+  gfx->drawRoundRect(SPEED_PILL_X, EZ_PILL_Y, SPEED_PILL_W, LANG_PILL_H, 8, UI_INK);
+  gfx->setTextColor(gameSpeed > 1 ? UI_BG_DAY : UI_INK);
+  setSize(2);
+  setCur(SPEED_PILL_X + (SPEED_PILL_W - textW(sp, 2)) / 2, EZ_PILL_Y + 7);
+  printT(sp);
 
   // selector de sonido: mucho / medio / poco / apagado
   uint8_t sndMode = audioMode();
@@ -3848,7 +3925,7 @@ void renderClock() {
   gfx->drawRoundRect(SOUND_PILL_X, LANG_PILL_Y, SOUND_PILL_W, LANG_PILL_H, 8, UI_INK);
   gfx->setTextColor(sndMode ? UI_BG_DAY : UI_INK);
   setSize(2);
-  setCur(SOUND_PILL_X + (SOUND_PILL_W - textW(sl, 2)) / 2, LANG_PILL_Y + 8);
+  setCur(SOUND_PILL_X + (SOUND_PILL_W - textW(sl, 2)) / 2, LANG_PILL_Y + 7);
   printT(sl);
 
   // selector de ahorro opcional: apagado por defecto, persistente
@@ -3857,7 +3934,7 @@ void renderClock() {
   gfx->drawRoundRect(PSAVE_PILL_X, LANG_PILL_Y, PSAVE_PILL_W, LANG_PILL_H, 8, UI_INK);
   gfx->setTextColor(powerSave ? UI_BG_DAY : UI_INK);
   setSize(2);
-  setCur(PSAVE_PILL_X + (PSAVE_PILL_W - textW(pl, 2)) / 2, LANG_PILL_Y + 8);
+  setCur(PSAVE_PILL_X + (PSAVE_PILL_W - textW(pl, 2)) / 2, LANG_PILL_Y + 7);
   printT(pl);
 
   // selector de idioma: una pildora que cicla English / 한국어 al tocar
@@ -3867,7 +3944,7 @@ void renderClock() {
   snprintf(lp, sizeof(lp), "%s >", LANG_CODES[gLang]);
   gfx->setTextColor(UI_INK);
   setSize(2);
-  setCur(LANG_PILL_X + (LANG_PILL_W - textW(lp, 2)) / 2, LANG_PILL_Y + 8);
+  setCur(LANG_PILL_X + (LANG_PILL_W - textW(lp, 2)) / 2, LANG_PILL_Y + 7);
   printT(lp);
 
   char fwLine[34];
@@ -3909,6 +3986,20 @@ void clockTap(int16_t x, int16_t y) {
     else if (x >= 318 && x < 376) clockM = (clockM + 1) % 60;
     clockDirty = true;
     return;
+  }
+  if (y >= EZ_PILL_Y && y <= EZ_PILL_Y + LANG_PILL_H) {
+    if (x >= EASY_PILL_X && x < EASY_PILL_X + EASY_PILL_W) {
+      setEasyMode(!easyMode);
+      clockDirty = true;
+      sfxPlay(easyMode ? SFX_MENU : SFX_TAP);
+      return;
+    }
+    if (x >= SPEED_PILL_X && x < SPEED_PILL_X + SPEED_PILL_W) {
+      setGameSpeed(gameSpeed >= 3 ? 1 : gameSpeed + 1);
+      clockDirty = true;
+      sfxPlay(SFX_MENU);
+      return;
+    }
   }
   if (y >= LANG_PILL_Y && y <= LANG_PILL_Y + LANG_PILL_H) {
     if (x >= SOUND_PILL_X && x < SOUND_PILL_X + SOUND_PILL_W) {
@@ -4642,12 +4733,16 @@ void renderCardSteps() {
     char goalText[18], prog[18];
     snprintf(goalText, sizeof(goalText), T(S_STEP_GOAL_FMT), (unsigned long)goal);
     snprintf(prog, sizeof(prog), "%lu/%lu", (unsigned long)progress, (unsigned long)goal);
-    setCur(66, y + 9);
+    const int ty = y + (38 - textH(1)) / 2;
+    setCur(66, ty);
     printT(goalText);
-    setCur(232, y + 9);
+    setCur(232, ty);
     printT(T(stepRewardTextId(i)));
-    setCur(354, y + 9);
-    printT(done ? T(S_DONE) : prog);
+    // alineado a la derecha: en coreano "5000/5000걸음" es mucho mas ancho que
+    // "5000/5000" y a x fija se salia del recuadro por la derecha.
+    const char *tail = done ? T(S_DONE) : prog;
+    setCur(410 - textW(tail, 1), ty);
+    printT(tail);
   }
 }
 
@@ -4717,12 +4812,13 @@ void drawStepsHud() {
   uint16_t color = pet.stepsToday >= 5000UL ? UI_BAR_WARN :
                    pet.stepsToday >= 500UL ? UI_BAR_OK : UI_TRACK;
   char label[24];
-  snprintf(label, sizeof(label), "%s %lu", T(S_STEPS), (unsigned long)pet.stepsToday);
+  snprintf(label, sizeof(label), T(S_STEPS_FMT), (unsigned long)pet.stepsToday);
   gfx->fillRoundRect(STEP_HUD_X, STEP_HUD_Y, STEP_HUD_W, STEP_HUD_H, 8, UI_WHITE);
   gfx->drawRoundRect(STEP_HUD_X, STEP_HUD_Y, STEP_HUD_W, STEP_HUD_H, 8, color);
   gfx->setTextColor(UI_INK);
   setSize(1);
-  setCur(STEP_HUD_X + (STEP_HUD_W - textW(label, 1)) / 2, STEP_HUD_Y + 10);
+  setCur(STEP_HUD_X + (STEP_HUD_W - textW(label, 1)) / 2,
+         STEP_HUD_Y + (STEP_HUD_H - textH(1)) / 2);
   printT(label);
 }
 

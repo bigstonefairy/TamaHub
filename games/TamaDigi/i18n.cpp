@@ -242,6 +242,11 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "CHAMPION",
     "ULTIMATE",
     "MEGA",
+    "EASY MODE ON",
+    "EASY MODE OFF",
+    "SPEED %ux",
+    "Full bars, guaranteed wins",
+    "Faster: more encounters",
   },
   // ---------------- KO ----------------
   {
@@ -343,7 +348,7 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "보내주기",
     "능력치",
     "훈련",
-    "힘",
+    "공격",
     "속도",
     "방어",
     "기분이 좋으면 스스로 자라요",
@@ -476,6 +481,11 @@ static const char *const STRINGS[LANG_COUNT][STR_COUNT] = {
     "성숙기",
     "완전체",
     "궁극체",
+    "쉬움 모드 켬",
+    "쉬움 모드 끔",
+    "속도 %ux",
+    "게이지 가득, 항상 승리",
+    "빠를수록 더 많이 만나요",
   },
 };
 

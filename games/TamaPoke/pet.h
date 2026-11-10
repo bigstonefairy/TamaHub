@@ -116,6 +116,11 @@ public:
   uint8_t joy = 80;       // felicidad
   uint8_t energy = 80;    // energia
   uint8_t hygiene = 100;  // limpieza
+  // Ajustes de partida (no van en el guardado del bicho: se leen de NVS en
+  // setup() y se reaplican si el jugador los cambia). easyMode mantiene las
+  // cuatro barras llenas; gameSpeed acelera el reloj de juego 1x/2x/3x.
+  bool easyMode = false;
+  uint8_t gameSpeed = 1;
   uint8_t poops = 0;      // cacas en pantalla (max 3)
   uint8_t weight = 0;     // 0-100: las chuches engordan, el minijuego quema
   // genes (90-110%, se tiran al eclosionar) y entrenamiento (0-100)
@@ -244,6 +249,8 @@ public:
   void release();  // soltar (pulsacion larga + confirmar)
   void syncClock(uint32_t nowEpoch);  // aplica el tiempo transcurrido apagado
   void setClock(uint32_t nowEpoch);   // fija la hora sin aplicar progresion
+  void setGameSpeed(uint8_t speed);   // 1x/2x/3x; reinicia la base del tick
+  void topUpCare();                   // modo facil: las cuatro barras a 100 y sin cacas
   void startFarewell();  // tambien usable desde la consola serie (BYE)
   void startRunaway();   // tambien usable desde la consola serie (RUN)
 

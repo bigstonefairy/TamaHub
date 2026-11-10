@@ -110,6 +110,22 @@ void Pet::setClock(uint32_t nowEpoch) {
   if (nowEpoch) save();  // persiste ya: un corte de luz no pierde la referencia
 }
 
+void Pet::setGameSpeed(uint8_t speed) {
+  gameSpeed = speed < 1 ? 1 : speed > 3 ? 3 : speed;
+  // El while de update() compara contra lastTick. Al cambiar de marcha hay
+  // que mover la base o el primer tick llega con el retraso de la velocidad
+  // anterior (y a 3x se notaria como una rafaga de tres ticks).
+  lastTick = millis();
+}
+
+void Pet::topUpCare() {
+  fullness = 100;
+  joy = 100;
+  energy = 100;
+  hygiene = 100;
+  poops = 0;
+}
+
 void Pet::syncClock(uint32_t nowEpoch) {
   uint32_t seen = prefs.getUInt("seen", 0);
   // Multi-game: TamaHub writes `resumeAt` right before launching us.
@@ -126,7 +142,10 @@ void Pet::syncClock(uint32_t nowEpoch) {
     save();  // primera vez o sin tiempo que aplicar: solo persistir la hora
     return;
   }
-  if (mins > 14UL * 24 * 60) mins = 14UL * 24 * 60;  // tope: 2 semanas
+  // La velocidad multiplica el tiempo de JUEGO, no el de pared: a 3x una
+  // ausencia de una hora envejece y hace hambre como tres.
+  if (gameSpeed > 1) mins *= gameSpeed;
+  if (mins > 14UL * 24 * 60) mins = 14UL * 24 * 60;  // tope: 2 semanas de juego
 
   for (uint32_t i = 0; i < mins; i++) {
     ageMinutes++;
@@ -150,13 +169,14 @@ void Pet::syncClock(uint32_t nowEpoch) {
     joy = dropTo(joy, 1, 15);
   }
   if (!isEgg()) {
-    if (!sleeping) {  // durmiendo no ensucia
+    if (!sleeping && !easyMode) {  // durmiendo no ensucia; en modo facil nunca
       uint8_t p = poops + mins / 240;
       poops = p > 3 ? 3 : p;
     }
     // la evolucion NO se aplica offline: queda lista y la dispara el usuario
     // tocando al bicho cuando vuelve (para que vea la transformacion)
   }
+  if (easyMode) topUpCare();
   Serial.printf("offline: %u min aplicados (nv.%u)\n", mins, level());
   save();
 }
@@ -169,8 +189,11 @@ bool Pet::update(uint32_t nowMs) {
     return true;
   }
   bool changed = false;
-  while (nowMs - lastTick >= PET_TICK_MS) {
-    lastTick += PET_TICK_MS;
+  // 2x/3x: el mismo tick de juego, con menos milisegundos reales entre uno y
+  // otro. lastTick se reinicia al cambiar la velocidad (setGameSpeed).
+  const uint32_t step = PET_TICK_MS / (gameSpeed ? gameSpeed : 1);
+  while (nowMs - lastTick >= step) {
+    lastTick += step;
     tick();
     changed = true;
   }
@@ -199,6 +222,7 @@ void Pet::tick() {
     }
     if (ageMinutes % 3 == 0) hygiene = dropTo(hygiene, 1, 45);
     checkMedals();  // aun puede cruzar un nivel por edad mientras duerme
+    if (easyMode) topUpCare();
     if (++ticksSinceSave >= 5) pendingSave = true;
     return;
   }
@@ -207,7 +231,7 @@ void Pet::tick() {
 
   fullness = clamp100(fullness - nightFoodDrop(lastSeenEpoch));
   energy = clamp100(energy - 1);
-  if (fullness > 40 && poops < 3 && random(100) < 15) poops++;
+  if (!easyMode && fullness > 40 && poops < 3 && random(100) < 15) poops++;
 
   hygiene = clamp100(hygiene - 1 - 4 * poops);
   // el sobrepeso da pereza: la energia cae el doble
@@ -250,6 +274,10 @@ void Pet::tick() {
 
   // ciclo completo (forma final + 7 dias): la despedida NO salta sola; queda
   // lista (canFarewellNow) y la dispara el usuario con el boton, para que la vea
+
+  // Modo facil: se rellena DESPUES de las bajadas del tick, no antes, o el
+  // propio tick volveria a restar lo que acabamos de poner.
+  if (easyMode) topUpCare();
 
   // autoguardado periodico: NO escribir a flash aqui (corre dentro del loop,
   // mientras se anima); solo marcar y dejar que el loop lo vuelque al atenuar
@@ -445,6 +473,7 @@ void Pet::noteDailyGoal(uint8_t goalType, uint8_t amount) {
 
 // primer cuidado del dia: avanza la racha y afianza el vinculo
 void Pet::registerCare() {
+  if (easyMode) topUpCare();  // tambien tras jugar/entrenar, antes del save
   if (isEgg() || ceremony != CER_NONE) return;
   uint32_t d = today();
   if (d == 0 || d == lastCareDay) return;  // sin reloj, o ya conto hoy
@@ -1450,7 +1479,10 @@ bool Pet::startExpedition(uint8_t minutes, uint32_t nowEpoch, uint8_t luckRoll, 
   if (reward == EXP_ITEM_NONE) return false;
 
   energy -= cost;
-  expeditionEndEpoch = nowEpoch + (uint32_t)minutes * 60UL;
+  // La velocidad acorta la expedicion igual que acorta los minutos de juego;
+  // el modo facil la termina al instante (siempre sale bien).
+  expeditionEndEpoch = nowEpoch + (uint32_t)minutes * 60UL / (gameSpeed ? gameSpeed : 1);
+  if (easyMode) expeditionEndEpoch = nowEpoch;
   expeditionRewardItem = reward;
   expeditionSite = site;
   expeditionMinutes = minutes;
@@ -1458,6 +1490,7 @@ bool Pet::startExpedition(uint8_t minutes, uint32_t nowEpoch, uint8_t luckRoll, 
   uint8_t chance = minutes == 15 ? 10 : minutes == 30 ? 15 : 20;
   expeditionBonusItem = site == EXP_SITE_VOLCANO || bonusRoll < chance ? EXP_ITEM_TRAIN :
                         site == EXP_SITE_COAST ? EXP_ITEM_ENERGY : EXP_ITEM_CARE;
+  if (easyMode) topUpCare();  // el coste de energia no debe verse ni un tick
   save();
   return true;
 }

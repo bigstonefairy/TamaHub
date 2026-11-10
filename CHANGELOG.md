@@ -1,5 +1,57 @@
 # Changelog
 
+## v2.4.0 — 2026-11-11
+
+Easy mode, game speed and Korean UI fixes for TamaPoke and TamaDigi; the BOOT
+screen's `SAVED` is now centred.
+
+### Added
+
+- **Easy mode** in both games (NVS `easy`): fullness, joy, energy and hygiene
+  stay at 100 and poops never appear. Battles are always won, wild creatures
+  never flee, captures never fail, and TamaPoke expeditions finish immediately.
+- **Game speed 1x / 2x / 3x** (NVS `gspd` in TamaPoke, `spd` in TamaDigi):
+  scales the one-minute gameplay tick and offline catch-up, so more growth and
+  more encounters per real hour. Wall-clock reads (day/night, clock screens)
+  are untouched, and TamaPoke expedition length is divided by the speed.
+- TamaPoke: the clock screen gains an `EASY` and a `SPEED` pill. HOUR/MIN were
+  folded into the `-H/+H/-M/+M` button labels so the row fits.
+- TamaDigi: settings gained a third page with the easy switch, the speed
+  stepper, and one line explaining each.
+
+### Changed
+
+- TamaPoke Korean step text now uses Korean word order: `1234걸음`,
+  `오늘 1234걸음`, `누적 12345걸음`, `5000걸음`, `0/1500걸음`. The goal row's
+  progress is right-aligned so it cannot leave its box.
+- TamaDigi Korean training: the ATK row is `공격` (matching the stats card, was
+  `힘`), the title is larger, and the MEMO record sits inside its row.
+- Both games keep the options in NVS, separate from the creature save, so
+  starting a new game does not reset difficulty or speed.
+
+### Fixed
+
+- `multiboot.h` (all five copies): `SAVED` and its subtitle are centred as one
+  block using the real glyph width instead of a fixed y, which is what made the
+  message look off-centre on the round panel.
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.37.0 | 784,528 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.1.0 | 1,411,056 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,080 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.1.0 | 530,368 B | `0x820000` (`ota_3`) |
+| TamaNav | 1.0.0 | 721,056 B | `0xA20000` (`ota_4`) |
+
+### Notes
+
+- The settings apply on the next boot for offline time: the speed is loaded
+  before `syncClock()` so an absence at 3x is applied as three times as long.
+- Hardware checks for both games live in `docs/TESTING.md` §10.
+
 ## v2.3.0 — 2026-11-10
 
 TamaNav fills the reserved fifth slot: turn-by-turn guidance forwarded from a

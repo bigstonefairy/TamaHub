@@ -416,6 +416,22 @@ void Pet::setClock(uint32_t nowEpoch) {
   save();  // persiste ya: un corte de luz no pierde la referencia
 }
 
+void Pet::setGameSpeed(uint8_t speed) {
+  gameSpeed = speed < 1 ? 1 : speed > 3 ? 3 : speed;
+  // El while de update() compara contra lastTick. Al cambiar de marcha hay
+  // que mover la base o el primer tick llega con el retraso de la velocidad
+  // anterior (y a 3x se notaria como una rafaga de tres ticks).
+  lastTick = millis();
+}
+
+void Pet::topUpCare() {
+  fullness = 100;
+  joy = 100;
+  energy = 100;
+  hygiene = 100;
+  poops = 0;
+}
+
 void Pet::syncClock(uint32_t nowEpoch) {
   // Multi-game: TamaHub writes `resumeAt` into this namespace right before
   // launching us.  The pet was paused while the other game ran, so skip that
@@ -448,6 +464,10 @@ void Pet::syncClock(uint32_t nowEpoch) {
     return;
   }
 
+  // La velocidad multiplica el tiempo de JUEGO, no el de pared: a 3x una
+  // ausencia de una hora envejece y hace hambre como tres.
+  if (gameSpeed > 1) mins *= gameSpeed;
+
   for (uint32_t i = 0; i < mins; i++) {
     ageMinutes++;
     if (isEgg()) {
@@ -469,13 +489,14 @@ void Pet::syncClock(uint32_t nowEpoch) {
     joy = dropTo(joy, 1, 15);
   }
   if (!isEgg()) {
-    if (!sleeping) {  // durmiendo no ensucia
+    if (!sleeping && !easyMode) {  // durmiendo no ensucia; en modo facil nunca
       uint8_t p = poops + mins / 240;
       poops = p > 3 ? 3 : p;
     }
     // la evolucion NO se aplica offline: queda lista y la dispara el usuario
     // tocando al bicho cuando vuelve (para que vea la transformacion)
   }
+  if (easyMode) topUpCare();
   Serial.printf("offline: %u min aplicados (nv.%u)\n", mins, level());
   save();
 }
@@ -487,8 +508,11 @@ void Pet::update(uint32_t nowMs) {
     newEgg();
     return;
   }
-  while (nowMs - lastTick >= PET_TICK_MS) {
-    lastTick += PET_TICK_MS;
+  // 2x/3x: el mismo tick de juego, con menos milisegundos reales entre uno y
+  // otro. lastTick se reinicia al cambiar la velocidad (setGameSpeed).
+  const uint32_t step = PET_TICK_MS / (gameSpeed ? gameSpeed : 1);
+  while (nowMs - lastTick >= step) {
+    lastTick += step;
     tick();
   }
 }
@@ -523,6 +547,7 @@ void Pet::tick() {
     if (ageMinutes % 3 == 0) hygiene = dropTo(hygiene, 1, 45);
     defTick(true);  // descansar tambien es bienestar: cuenta para la DEF
     checkMedals();  // aun puede cruzar un nivel por edad mientras duerme
+    if (easyMode) topUpCare();
     if (++ticksSinceSave >= 5) pendingSave = true;
     return;
   }
@@ -531,7 +556,7 @@ void Pet::tick() {
 
   fullness = clamp100(fullness - 2);
   energy = clamp100(energy - 1);
-  if (fullness > 40 && poops < 3 && random(100) < 15) poops++;
+  if (!easyMode && fullness > 40 && poops < 3 && random(100) < 15) poops++;
 
   hygiene = clamp100(hygiene - 1 - 4 * poops);
   // el sobrepeso da pereza: la energia cae el doble
@@ -544,6 +569,11 @@ void Pet::tick() {
   if (fullness < 30) dJoy -= 2;
   if (hygiene < 30) dJoy -= 2;
   joy = clamp100(joy + dJoy);
+
+  // Modo facil: se rellena DESPUES de las bajadas del tick, y antes del
+  // descuido, para que el propio tick no reste lo que acabamos de poner ni
+  // cuente como abandono una barra que el jugador no puede bajar.
+  if (easyMode) topUpCare();
 
   // Descuido: dejar una estadistica por los suelos cuenta como error de
   // cuidado (con enfriamiento para no contar el mismo descuido cada minuto)
@@ -1012,6 +1042,7 @@ int Pet::careBonus() const {
 
 // primer cuidado del dia: avanza la racha y afianza el vinculo
 void Pet::registerCare() {
+  if (easyMode) topUpCare();  // tambien tras jugar/entrenar, antes del save
   if (isEgg() || ceremony != CER_NONE) return;
   uint32_t d = today();
   if (d == 0 || d == lastCareDay) return;  // sin reloj, o ya conto hoy

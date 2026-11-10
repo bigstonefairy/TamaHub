@@ -42,7 +42,7 @@
 
 // Version del firmware. Subir este numero en cada release (y manifest.json para
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
-#define FW_VERSION "1.0.1"
+#define FW_VERSION "1.1.0"
 
 // TamaHub scans the image for this tag, so the app can live in any ota slot.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:TamaDigi";
@@ -201,11 +201,16 @@ char partyBannerName[40] = "";
 bool clockOpen = false;       // pantalla de ajuste de hora (deslizar abajo)
 int clockH = 12, clockM = 0;  // hora en edicion
 // Settings is paged: 0 is the clock, 1 is sound/volume/brightness/language and
-// the reset. Declared up here with the other screen state because openClock()
-// resets both, and uiRimTarget() pages it -- both of which sit above the
-// settings screen's own section.
-#define CLOCK_PAGES 2
+// the reset, 2 is the gameplay options (easy mode + speed). Declared up here
+// with the other screen state because openClock() resets both, and
+// uiRimTarget() pages it -- both of which sit above the settings screen's own
+// section.
+#define CLOCK_PAGES 3
 uint8_t clockPage = 0;
+// Opciones de partida (pagina 3): barras siempre llenas + victoria garantizada,
+// y 1x/2x/3x de velocidad de juego. Viven en NVS, no en el guardado del bicho.
+bool easyMode = false;
+uint8_t gameSpeed = 1;
 // The reset confirm, on the settings screen. Its own flag rather than another
 // choiceKind: that dialog is drawn over the MAIN screen, and this one is modal
 // over settings.
@@ -765,6 +770,13 @@ static inline bool btlCellHit(int i, int16_t x, int16_t y) {
 #define SET_LANG  3
 #define SET_RESET 4
 
+// Settings page 3: the two options that change how the world moves. Two rows
+// with the same geometry as page 2, plus a hint where the rest of the screen
+// would be. Easy mode is a full-width switch like SOUND; speed is the same
+// stepper as VOL, so no new control type is invented on a third page.
+#define GAME_EASY_ROW  0
+#define GAME_SPEED_ROW 1
+
 // The memory game. See the essay above startMemoGame().
 #define MEMO_PADS 4
 #define MEMO_MAX 16          // sixteen is far past what anyone will reach
@@ -1080,6 +1092,40 @@ void brightSetLevel(uint8_t level) {
   p.putUChar("brt", gBrightLevel);
   p.end();
 }
+
+// Modo facil y velocidad, en la misma NVS que el resto de ajustes de la app.
+// Se llama ANTES de pet.syncClock() en setup(): la velocidad tambien escala el
+// tiempo que estuvo apagado.
+void loadGameOptions() {
+  Preferences p;
+  if (p.begin("tamadigi", true)) {
+    easyMode = p.getBool("easy", false);
+    gameSpeed = p.getUChar("spd", 1);
+    p.end();
+  }
+  if (gameSpeed < 1 || gameSpeed > 3) gameSpeed = 1;
+  pet.easyMode = easyMode;
+  pet.setGameSpeed(gameSpeed);
+}
+
+void setEasyMode(bool on) {
+  easyMode = on;
+  pet.easyMode = on;
+  if (easyMode) pet.topUpCare();
+  Preferences p;
+  if (!p.begin("tamadigi", false)) return;
+  p.putBool("easy", easyMode);
+  p.end();
+}
+
+void setGameSpeed(uint8_t speed) {
+  gameSpeed = speed < 1 ? 1 : speed > 3 ? 3 : speed;
+  pet.setGameSpeed(gameSpeed);
+  Preferences p;
+  if (!p.begin("tamadigi", false)) return;
+  p.putUChar("spd", gameSpeed);
+  p.end();
+}
 bool swallowGesture = false; // el toque que despierta no acciona nada
 uint32_t holdStart = 0;     // pulsacion larga sobre el bicho
 uint32_t confirmUntil = 0;  // dialogo "soltar?" activo hasta este millis
@@ -1197,6 +1243,7 @@ void setup() {
     e = rtcEpoch();                  // igual, solo importan las diferencias)
     Serial.println("RTC sin hora: sembrado, sin progresion offline esta vez");
   }
+  loadGameOptions();  // antes de syncClock: la velocidad escala el offline
   pet.syncClock(e);
 
   audioBegin();  // ES8311 + I2S + amplificador (suena un jingle de arranque)
@@ -4094,11 +4141,45 @@ static void renderClockOptions() {
   }
 }
 
+// Page 2: the two options that change how the world moves. Easy mode is a
+// full-width switch like SOUND; speed reuses the VOL stepper (its bar shows
+// 1/3, 2/3, 3/3 at a glance), so a third page needs no new control type.
+static void renderClockGameplay() {
+  gfx->setTextColor(UI_INK);
+  setSize(3);
+  setCur(CX - textW(T(S_SETTINGS), 3) / 2, 44);
+  printT(T(S_SETTINGS));
+
+  int rx, ry, rw, rh;
+  {
+    setRowRect(GAME_EASY_ROW, &rx, &ry, &rw, &rh);
+    const char *el = easyMode ? T(S_EZMODE_ON) : T(S_EZMODE_OFF);
+    gfx->fillRoundRect(rx, ry, rw, rh, 10, easyMode ? UI_BAR_OK : UI_WHITE);
+    gfx->drawRoundRect(rx, ry, rw, rh, 10, UI_INK);
+    gfx->setTextColor(easyMode ? UI_BG_DAY : UI_INK);
+    setSize(2);
+    setCur(CX - textW(el, 2) / 2, ry + rh / 2 - 8);
+    printT(el);
+  }
+  drawStepperRow(GAME_SPEED_ROW, T(S_SPEED_FMT), gameSpeed, 3, UI_BAR_WARN);
+
+  // What the two controls actually do, in one line each: a player who turns on
+  // easy mode should not have to discover that battles are won for them.
+  gfx->setTextColor(UI_INK_SOFT);
+  setSize(2);
+  setCur(CX - textW(T(S_EZMODE_HINT), 2) / 2, 260);
+  printT(T(S_EZMODE_HINT));
+  setSize(1);
+  setCur(CX - textW(T(S_SPEED_HINT), 1) / 2, 292);
+  printT(T(S_SPEED_HINT));
+}
+
 void renderClock() {
   gfx->fillScreen(RGB565_BLACK);
   gfx->fillCircle(CX, CY, 231, UI_BG_DAY);
   if (clockPage == 0) renderClockTime();
-  else renderClockOptions();
+  else if (clockPage == 1) renderClockOptions();
+  else renderClockGameplay();
 
   // version del firmware (discreta, abajo del todo)
   char ver[20];
@@ -4146,7 +4227,7 @@ void clockTap(int16_t x, int16_t y) {
     return;      // anything else while it is up does nothing at all
   }
 
-  if (clockPage != 0) {
+  if (clockPage == 1) {
     for (int i = 0; i < SET_ROWS; i++) {
       int rx, ry, rw, rh;
       setRowRect(i, &rx, &ry, &rw, &rh);
@@ -4185,6 +4266,29 @@ void clockTap(int16_t x, int16_t y) {
         sfxPlay(SFX_DENY);
         return;
       }
+    }
+    return;
+  }
+
+  if (clockPage == 2) {
+    int rx, ry, rw, rh;
+    setRowRect(GAME_EASY_ROW, &rx, &ry, &rw, &rh);
+    if (x >= rx && x <= rx + rw && y >= ry && y <= ry + rh) {
+      setEasyMode(!easyMode);
+      sfxPlay(easyMode ? SFX_LEVEL : SFX_TAP);
+      return;
+    }
+    setRowRect(GAME_SPEED_ROW, &rx, &ry, &rw, &rh);
+    if (x >= rx && x <= rx + rw && y >= ry && y <= ry + rh) {
+      // Same hit split as VOL: the ends step, the middle is a readout.
+      const bool minus = (x < rx + SET_STEP_W);
+      const bool plus = (x > rx + rw - SET_STEP_W);
+      if (!minus && !plus) return;
+      uint8_t v = gameSpeed;
+      if (plus && v < 3) setGameSpeed(v + 1);
+      else if (minus && v > 1) setGameSpeed(v - 1);
+      sfxPlay(SFX_TAP);
+      return;
     }
     return;
   }
@@ -4937,7 +5041,8 @@ static void btlResolve(uint8_t yourMove) {
     // A wild creature can leave. It spends its ACTION doing so rather than
     // fleeing and attacking in the same turn, so the fight simply ends -- with
     // no drops, which is what makes weakening it worth doing before it goes.
-    if (btlWild && random(100) < wildFoeEscapeChance(btlFoe.hp, btlFoe.maxHp)) {
+    // Modo facil: nunca se escapa; la expedicion siempre da su recompensa.
+    if (!easyMode && btlWild && random(100) < wildFoeEscapeChance(btlFoe.hp, btlFoe.maxHp)) {
       btlOver = true;
       btlWon = false;
       audioMusic(MUS_NONE);
@@ -4986,14 +5091,16 @@ static void btlResolve(uint8_t yourMove) {
     btlSwapWho = 1;
     return;
   }
-  if (btlYou.fainted() && btlSquadAt + 1 < btlSquadN) {
+  if (btlYou.fainted() && !(easyMode && !btlLink) && btlSquadAt + 1 < btlSquadN) {
     btlFaintUntil[0] = millis() + BTL_FAINT_MS;
     btlSwapWho = 0;
     return;
   }
   if (btlFoe.fainted() || btlYou.fainted()) {
     btlOver = true;
-    btlWon = btlFoe.fainted();
+    // Modo facil: la derrota no cuenta. Nunca en un combate por enlace, donde
+    // el resultado lo decide el otro dispositivo y lo viaja por la red.
+    btlWon = btlFoe.fainted() || (easyMode && !btlLink);
     // Every won battle counts towards the live Digimon's next digivolution
     // (Champion -> Ultimate needs them), whoever finished the fight.
     if (btlWon && btlPetIn) pet.addWin();
@@ -7365,8 +7472,11 @@ void renderTrain() {
   gfx->drawRoundRect(TRAIN_X, TRAIN_Y, TRAIN_W, TRAIN_H, 18, UI_INK);
 
   gfx->setTextColor(UI_INK);
-  setSize(2);
-  setCur(CX - textW(T(S_TRAIN), 2) / 2, TRAIN_Y + 20);
+  // El coreano mide 16 px por escala real, asi que setSize(2) y setSize(3)
+  // pintan lo mismo. Con 4 (32 px) el titulo pesa como el ingles a 3 (24 px)
+  // sin salirse del panel: la primera fila empieza en TRAIN_Y+46.
+  setSize(gCjkFont ? 4 : 3);
+  setCur(CX - textW(T(S_TRAIN), gCjkFont ? 4 : 3) / 2, gCjkFont ? TRAIN_Y + 8 : TRAIN_Y + 16);
   printT(T(S_TRAIN));
 
   const char *lbl[TRAIN_ROWS] = { T(S_TR_ATK), T(S_TR_SPE), T(S_TR_DEF), T(S_MEMO) };
@@ -7390,7 +7500,9 @@ void renderTrain() {
       snprintf(r, sizeof(r), T(S_REC_FMT), pet.memoHi);
       gfx->setTextColor(UI_INK_SOFT);
       setSize(1);
-      setCur(TRAIN_X + 32, y + 30);
+      // y+26, no y+30: en coreano la linea mide 16 px y con 30 se salia por
+      // debajo del recuadro de la fila (44 px) y tocaba el borde.
+      setCur(TRAIN_X + 32, y + 26);
       printT(r);
       continue;
     }

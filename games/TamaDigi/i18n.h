@@ -181,6 +181,8 @@ enum StrId : uint8_t {
   S_TRAIN_TOTAL_FMT,  // "Training: %u" -- trAtk + trDef + trSpe
   S_ATTR,             // card label: Vaccine / Data / Virus / Free
   S_STAGE_0, S_STAGE_1, S_STAGE_2, S_STAGE_3, S_STAGE_4, S_STAGE_5,
+  // settings page 3: easy mode and game speed
+  S_EZMODE_ON, S_EZMODE_OFF, S_SPEED_FMT, S_EZMODE_HINT, S_SPEED_HINT,
   STR_COUNT
 };
 

@@ -203,6 +203,13 @@ public:
 
   void begin();                 // carga estado de NVS (o crea el primer huevo)
   void update(uint32_t nowMs);  // llamar en cada loop()
+  // Ajustes de partida (se leen de NVS en setup, no del guardado del bicho):
+  // easyMode mantiene las barras llenas y gana siempre; gameSpeed acelera el
+  // reloj de juego 1x/2x/3x.
+  bool easyMode = false;
+  uint8_t gameSpeed = 1;
+  void setGameSpeed(uint8_t speed);  // 1x/2x/3x; reinicia la base del tick
+  void topUpCare();                  // modo facil: barras a 100 y sin cacas
 
   // Acciones (botones tactiles)
   void feed();              // baya roja (compatibilidad)

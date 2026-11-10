@@ -97,6 +97,8 @@ enum StrId : uint8_t {
   S_EXP_COAST, S_EXP_VOLCANO, S_EXP_FOREST, S_EXP_SEALS_FMT,
   S_EXP_WALK_PROGRESS, S_EXP_WALK_EARNED,
   S_EVO_NEED_BOND,
+  // modo facil, velocidad de juego y el chip de pasos (forma corta)
+  S_EZMODE_ON, S_EZMODE_OFF, S_SPEED_FMT, S_STEPS_FMT,
   STR_COUNT
 };
 

@@ -77,22 +77,36 @@ inline void waitRelease() {
   delay(40);  // debounce
 }
 
+// Width of a string in the built-in 5x7 font at `size`. Every glyph advances
+// 6 px per scale step, but the last column of the last glyph is padding, so
+// strlen * 6 * size is 1-3 px too wide and pushes the text left.
+inline int textWidth(const char *s, uint8_t size) {
+  const int n = (int)strlen(s);
+  return n > 0 ? n * 6 * (int)size - (int)size : 0;
+}
+
 inline void screenMessage(Arduino_GFX *g, const char *line1, const char *line2,
                           uint16_t accent) {
   if (!g) return;
   g->fillScreen(0x0000);
   g->drawCircle(233, 233, 196, accent);
 
-  g->setTextSize(3);
+  // Centre the two lines as ONE block. The old fixed y=196/238 put the pair
+  // 8 px above the middle of the dial, which is what read as "SAVED is off to
+  // one side" on the round panel.
+  constexpr int kSize1 = 3, kSize2 = 2, kGap = 18;
+  constexpr int kH1 = 8 * kSize1, kH2 = 8 * kSize2;
+  const int y1 = (466 - (kH1 + kGap + kH2)) / 2;
+  const int y2 = y1 + kH1 + kGap;
+
+  g->setTextSize(kSize1);
   g->setTextColor(0xFFFF);
-  int16_t w1 = (int16_t)strlen(line1) * 18;
-  g->setCursor((466 - w1) / 2, 196);
+  g->setCursor((466 - textWidth(line1, kSize1)) / 2, y1);
   g->print(line1);
 
-  g->setTextSize(2);
+  g->setTextSize(kSize2);
   g->setTextColor(0x8410);
-  int16_t w2 = (int16_t)strlen(line2) * 12;
-  g->setCursor((466 - w2) / 2, 238);
+  g->setCursor((466 - textWidth(line2, kSize2)) / 2, y2);
   g->print(line2);
 
   g->flush();
