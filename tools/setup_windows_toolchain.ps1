@@ -77,22 +77,31 @@ $asciiUser = Join-Path $StagingRoot "ArduinoUser"
 Write-Host "non-ASCII path detected; staging the build under $StagingRoot" -ForegroundColor Yellow
 
 # ---------------------------------------------------------------- repository --
+# A junction's Target is the *real* path, so compare against the resolved repo
+# root.  Running the script from inside the junction would otherwise look like a
+# mismatch and "repoint" the junction onto itself, which deletes it.
+$repoReal = @((Get-Item $RepoRoot -Force).Target)[0]
+if (-not $repoReal) { $repoReal = (Resolve-Path -LiteralPath $RepoRoot).Path }
+
 $existing = Get-Item $asciiRepo -Force -ErrorAction SilentlyContinue
 if ($existing) {
     if (-not $existing.LinkType) {
         throw "$asciiRepo exists and is not a junction. Remove it or pass -StagingRoot."
     }
-    if ($existing.Target -ne $RepoRoot) {
-        Write-Host "repointing $asciiRepo -> $RepoRoot"
+    if (@($existing.Target)[0] -ne $repoReal) {
+        Write-Host "repointing $asciiRepo -> $repoReal"
         cmd /c rd $asciiRepo | Out-Null
         $existing = $null
     }
 }
 if (-not $existing) {
-    cmd /c mklink /J $asciiRepo $RepoRoot | Out-Null
+    if ($asciiRepo -eq $repoReal) {
+        throw "cannot stage ${asciiRepo}: it is the repository itself (run from the real path)."
+    }
+    cmd /c mklink /J $asciiRepo $repoReal | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "mklink failed for $asciiRepo" }
 }
-Write-Host "  repo      $asciiRepo -> $RepoRoot"
+Write-Host "  repo      $asciiRepo -> $repoReal"
 
 # --------------------------------------------------------------- arduino data --
 $needData = -not (Test-Path (Join-Path $asciiData "packages\esp32\hardware\esp32"))

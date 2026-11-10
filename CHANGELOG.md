@@ -1,5 +1,61 @@
 # Changelog
 
+## v2.2.0 — 2026-11-10
+
+TamaClock 1.1: bigger time, themed faces with hourly animations, battery, and
+touch / power gestures.
+
+### Added
+
+- **Battery indicator** on the clock face: icon plus percentage, green above
+  30 %, orange down to 15 %, red below that. With USB power the cell turns green
+  and a bolt is drawn.
+- **Four themed faces** — Pokémon, Digimon, Mario and Zelda — drawn procedurally
+  so nothing copyrighted ships in the firmware. Each plays a ~20 second
+  animation at the top of every hour (`minute == 0 && second < 20`).
+- **SD animation packs**: `/tamaclock/<face>.tnm` replaces a built-in scene with
+  a raw RGB565 animation streamed from the card on demand. Missing or invalid
+  packs fall back to the procedural scene, so the card is never required.
+  `tools/make_clock_pack.py` builds a pack from a GIF or a folder of images.
+- `docs/CLOCK.md` documents the controls, the pack format and the date offset.
+- New serial commands: `FACE=`, `COLOR=`, `BRIGHT=`, `SLEEP`, `WAKE`, `SHOW`,
+  `SD`, `PACK`, `AUTO`, `REAL`.
+
+### Changed
+
+- **Layout**: the ring grew from radius 196 to 224, the time from text size 8 to
+  12, and every text row is sized to stay inside the circle. The bottom help
+  lines no longer clip.
+- **Gestures**: swipe up / down changes face, long touch (0.8 s) cycles the
+  theme colour, a tap switches 12 / 24 hour, and **PWR short press** blanks the
+  panel (touch, PWR, BOOT or serial wakes it). BOOT still returns to TamaHub
+  after 2 seconds.
+- **Theme colours**: yellow, cyan, green, orange, pink, white, purple.
+- **Date**: the games seed a virgin RTC with a fixed date, so the clock used to
+  show `2026-01-02`. TamaClock now keeps a whole-day display offset derived from
+  its build date and recomputed on every reflash. The RTC is never written, so
+  the games do not apply a 14-day offline-progression jump.
+- Face, colour, 12/24 h, brightness and the date offset persist in the new NVS
+  namespace `tamaclock`.
+- The clock caches the RTC at 5 Hz instead of polling I2C on every loop.
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.36.2 | 783,232 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.0.1 | 1,409,728 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,064 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.1.0 | 530,352 B | `0x820000` (`ota_3`) |
+
+### Notes
+
+- The install flow and URLs are unchanged. Existing saves and the RTC are
+  untouched; NVS `tamaclock` starts with defaults on first boot (digital face,
+  yellow, 24 h, brightness 200).
+- Hardware checks for the new clock live in `docs/TESTING.md` §8.
+
 ## v2.1.0 — 2026-11-10
 
 English + Korean UI for TamaPoke and TamaDigi, and a much smaller TamaDigi image.

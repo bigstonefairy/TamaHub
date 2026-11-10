@@ -33,7 +33,7 @@ TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
   ├─ 슬롯 1 → 예: TamaPoke expanded v1.36.2
   ├─ 슬롯 2 → 예: TamaDigi v1.0.1
   ├─ 슬롯 3 → 예: TamaNaruto v1.2.0
-  ├─ 슬롯 4 → 예: TamaClock v1.0.0
+  ├─ 슬롯 4 → 예: TamaClock v1.1.0
   └─ 슬롯 5 → 비움 (내비게이션 예약)
 
 앱 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
@@ -154,6 +154,18 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 **짧게 누르면 뒤로가기**입니다. TamaDigi/Naruto는 기존 아래로 스와이프와 같은
 경로를 타고, TamaPoke는 키보드/도움말/시계/도감/게임 메뉴/카드만 닫습니다.
 전투와 미니게임은 짧은 눌림으로 중단되지 않습니다. TamaClock은 12/24시간을 전환합니다.
+
+### TamaClock 조작
+
+- **위/아래로 스와이프**: 시계 화면 전환 (디지털 → 포켓몬 → 디지몬 → 마리오 → 젤다)
+- **길게 터치**: 테마 색상 변경 (노랑 → 하늘 → 초록 → 주황 → 분홍 → 흰색 → 보라)
+- **톡 터치**: 12/24시간 전환
+- **PWR 짧게**: 화면 끄기 / 켜기 (잠들기)
+- **BOOT 2초**: TamaHub로 복귀
+
+테마 화면은 정각마다 약 20초짜리 애니메이션이 재생됩니다. SD 카드의
+`/tamaclock/<face>.tnm` 팩이 있으면 내장 그림 대신 그 애니메이션을 사용합니다.
+자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를 참고하세요.
 
 > 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 앱이 켜진 뒤에 누르세요.
 
@@ -390,7 +402,7 @@ ota_4,    app,  ota_4,   0xA20000, 0x200000,
 ```
 
 - 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.78MB, TamaDigi 약 1.41MB,
-  TamaNaruto 약 1.72MB, TamaClock 약 0.44MB로 여유가 있습니다.
+  TamaNaruto 약 1.72MB, TamaClock 약 0.53MB로 여유가 있습니다.
 - `nvs`(64KB)와 `otadata`(8KB)는 **v1과 같은 주소**입니다. 파티션 테이블만 다시 써도
   세이브는 유지됩니다. `tools/check_layout.py`가 v2 값과 다르면 빌드를 거부합니다.
 - 앱을 어느 슬롯에 넣어도 됩니다. 허브는 각 이미지의 `TAMAHUB_APP:<name>` /
@@ -439,7 +451,8 @@ NVS는 건드리지 않으므로 세이브와 설정은 그대로입니다.
 시리얼 명령:
 
 - 허브: `1`–`5` 즉시 실행, `SLOTS` 상태 출력, `R` 재스캔
-- TamaClock: `SET=YYYY-MM-DD HH:MM:SS`, `TIME=<epoch>`, `12H`, `24H`, `STATUS`
+- TamaClock: `SET=YYYY-MM-DD HH:MM:SS`, `TIME=<epoch>`, `12H`, `24H`, `STATUS`,
+  `FACE=n|NEXT|PREV`, `COLOR=n|NEXT`, `BRIGHT=n`, `SLEEP`, `WAKE`, `SHOW`, `SD`, `PACK`, `AUTO`, `REAL`
 - 게임: 업스트림 명령 유지 (`PUT`, `LS`, …)
 
 ---
@@ -451,7 +464,7 @@ hub/                  TamaHub 스케치 (factory)
 games/TamaPoke/       TamaPoke expanded v1.36.2 + 멀티부팅 패치
 games/TamaDigi/       TamaDigi v1.0.1 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
-apps/TamaClock/       TamaClock v1.0.0 (RTC 시계, 어느 슬롯이든 가능)
+apps/TamaClock/       TamaClock v1.1.0 (큰 디지털 시계, 테마 4종, 스와이프, 수면)
 partitions.csv        동결된 v2 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
                       (setup_windows_toolchain.ps1: 한글 경로 우회)
