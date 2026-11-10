@@ -35,7 +35,7 @@ radius 196, which left the bottom help line outside the ring.
 
 Themed faces play their animation for the first 20 seconds of every hour
 (`minute == 0 && second < 20`). `SHOW` on the serial port replays it on demand.
-The rest of the time they idle at about 6 fps; the hourly show runs at 12 fps.
+The rest of the time they idle at about 8 fps; the hourly show runs at 12 fps.
 
 ### SD animation packs (optional)
 

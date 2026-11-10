@@ -896,7 +896,7 @@ void loop() {
   }
 
   // Digital face: one redraw per second is enough (second ticks + date).
-  // Themed faces run at 5 fps idle and 12 fps during the hourly show.
+  // Themed faces run at about 8 fps idle and 12 fps during the hourly show.
   if (face == FACE_DIGITAL) {
     if (gClockOk && (uint32_t)gTm.tm_sec != lastSecond) {
       lastSecond = gTm.tm_sec;
