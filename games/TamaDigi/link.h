@@ -34,7 +34,7 @@
 
 #define LINK_PROTO 2        // bump on ANY wire change; a mismatch is refused
 #define LINK_MAX_PAYLOAD 200
-#define LINK_NAME_LEN 12
+#define LINK_NAME_LEN 24  // Korean names are up to 18 UTF-8 bytes
 
 #define LINK_RESEND_MS 400
 // Resends are jittered, and that is not decoration. A fixed interval can lock

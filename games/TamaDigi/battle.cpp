@@ -26,7 +26,7 @@ void combatantFromPet(Combatant &c, const Pet &p, uint8_t levelCap) {
     party.defOf(stats), party.spaOf(stats), party.spdOf(stats), party.speOf(stats));
   for (int i = 0; i < MOVE_SLOTS; i++) c.moves[i] = p.moves[i];
   c.variant = p.variant;
-  const char *nm = p.nick[0] ? p.nick : DEX_TBL[p.speciesId].name;
+  const char *nm = p.nick[0] ? p.nick : dexName(p.speciesId);
   snprintf(c.name, sizeof(c.name), "%s", nm);
 }
 
@@ -35,7 +35,7 @@ void combatantFromParty(Combatant &c, const PartyMon &m) {
        party.spaOf(m), party.spdOf(m), party.speOf(m));
   for (int i = 0; i < MOVE_SLOTS; i++) c.moves[i] = m.moves[i];
   c.variant = m.variant != 0;
-  const char *nm = m.nick[0] ? m.nick : DEX_TBL[m.dex].name;
+  const char *nm = m.nick[0] ? m.nick : dexName(m.dex);
   snprintf(c.name, sizeof(c.name), "%s", nm);
 }
 

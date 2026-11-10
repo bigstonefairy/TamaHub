@@ -27,6 +27,13 @@ Huge thanks to that whole community for an enormous amount of work.
 > package the sprites from the original sources with `tools/pack_*.py` (or the web
 > installer).
 
+## Korean UI
+
+The English/Korean interface and the Korean species names were added for TamaHub.
+The names are the official Korean Pokémon names (© Nintendo / Game Freak / The
+Pokémon Company); the UI translations were written for this project. Hangul is
+rendered with GNU Unifont through U8g2's font data, painted by Arduino_GFX.
+
 ## Software / hardware
 
 | Component | Author / source |
@@ -34,6 +41,8 @@ Huge thanks to that whole community for an enormous amount of work.
 | GFX Library for Arduino | [moononournation](https://github.com/moononournation/Arduino_GFX) |
 | SensorLib (CST9217 touch, PCF85063 RTC) | [Lewis He / lewisxhe](https://github.com/lewisxhe/SensorLib) |
 | XPowersLib (AXP2101 PMU) | [Lewis He / lewisxhe](https://github.com/lewisxhe/XPowersLib) |
+| U8g2 (Korean font data) | [olikraus/u8g2](https://github.com/olikraus/u8g2), BSD-2-Clause |
+| GNU Unifont glyphs (`unifont_t_korean2`) | [unifoundry.com/unifont](https://unifoundry.com/unifont/), SIL OFL 1.1 / GPLv2+ with font embedding exception |
 | Board and pinout | [Waveshare ESP32-S3-Touch-AMOLED-1.75](https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.75) |
 | Web installer | [ESP Web Tools](https://esphome.github.io/esp-web-tools/) (Nabu Casa) |
 

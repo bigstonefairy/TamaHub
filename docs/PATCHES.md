@@ -1,8 +1,9 @@
 # Patches applied to the upstream games
 
 Both upstream sketches are vendored with the smallest possible changes: the
-game logic, rendering and save formats are untouched. Each change below exists
-only to make two independent firmwares share one device.
+game logic and save formats are untouched, and the English UI still draws exactly
+as it did. The only visual change is the new Korean mode, which is opt-in. Each
+change below exists either to share one device or to add Korean.
 
 ## Shared (both games)
 
@@ -82,11 +83,53 @@ and every write returned `ERR`. Each game now creates the parent and child in
 `ensureMonsRoot()`, called from `sdBegin()`, `SDFORMAT`, `SDTEST`, `SDCLEAR` and
 `PUT`.
 
+### `i18n.h` / `i18n.cpp` – English + Korean only
+
+- `Lang` is now `{ LANG_EN, LANG_KO }`; the five other tables (ES/FR/DE/IT/PT)
+  were deleted, which is what paid for the Korean glyphs. Every string still goes
+  through `T(S_...)`, so no call site cares.
+- Korean strings are UTF-8 and live in the same `STRINGS[LANG_COUNT][STR_COUNT]`
+  table; `T()` picks the row for `gLang`.
+- `dexName(dex)` returns the Korean name or the English one from the roster
+  (TamaPoke: `DEX_NAMES[2][…]`; TamaDigi: `DEX_NAME_KO[]` next to `DEX_TBL`).
+  TamaDigi's `typeName()` / `attrName()` do the same with `ELEMENT_NAME_KO` /
+  `ATTR_NAME_KO`.
+- The language is stored under the NVS key **`lang2`** (namespaces `tamapoke` /
+  `tamadigi`). The old `lang` key is deliberately ignored, because there `1`
+  meant English: the first boot after updating starts in English.
+- Move names (`moveName()` / `MOVE_NAME_TBL`) and the help screens stay English.
+
+### Text layer (`TamaPoke.ino`, `TamaDigi.ino`)
+
+Arduino_GFX's 5×7 font has no hangul, so Korean uses U8g2's
+`u8g2_font_unifont_t_korean2` (16 px) through Arduino_GFX's own U8g2 support.
+The upstream drawing code was written against "8 px tall, 6 px per character",
+so a thin layer keeps every old call site valid:
+
+- `setSize(n)` divides by 2 in Korean (16 px unifont ≈ 5×7 at scale 2) and sets
+  the real scale.
+- `setCur(x, y)` adds the font ascent: U8g2 anchors on the baseline, the 5×7 on
+  the top-left.
+- `textW(s, size)` returns `strlen(s) * 6 * size` in English — the exact old
+  arithmetic, so English layouts do not move — and `getTextBounds()` in Korean.
+- `printT()` draws the string and, in Korean only, repaints it shifted 1 px to
+  fake bold: the scaled-down unifont is thin.
+- `applyLangFont()` is the only place that touches the font. It runs after
+  `gfx->begin()` and after every `setLang()`.
+
+Auto-shrink decisions that used to count characters (`strlen(name) <= 11`) now
+measure `textW`, otherwise a 5-syllable Korean name would be sized by its 10
+ASCII-looking bytes. Buffers that receive a name (`btlMsg`, `partyBannerName`,
+`Combatant::name`, `LINK_NAME_LEN`, dialog lines) were widened to hold up to
+18 UTF-8 bytes.
+
 ## TamaPoke (expanded fork v1.36.2)
 
 | File | Change |
 |---|---|
-| `TamaPoke.ino` | force `TAMAPOKE_GEN3_RELEASE` (386 species); add `TAMAHUB_APP_VERSION` + `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()`; short press calls `physicalBack()` |
+| `TamaPoke.ino` | force `TAMAPOKE_GEN3_RELEASE` (386 species); add `TAMAHUB_APP_VERSION` + `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()`; short press calls `physicalBack()`; Korean text layer and `textW()`-based centering/auto-shrink; language pill cycles `EN`/`KO` |
+| `i18n.h`, `i18n.cpp` | English + Korean only; `lang2` NVS key; Korean string table; `dexName()` |
+| `dex.h` | `DEX_NAMES[2][DEX_COUNT + 1]` (English row untouched + 386 Korean names) and `DEX_LANG_COUNT` |
 | `pet.h` | public `saveNow()` |
 | `pet.cpp` | `saveNow()` implementation; `resumeAt` in `syncClock()` |
 | `sdmon.cpp` | `MONS_ROOT`; `SD_MMC.begin(..., false)`; path rewrite; `WHOAMI`/`SDSTAT`/`SDTEST`/`SDFORMAT`/`SDCLEAR`; safe `PUT` |
@@ -96,7 +139,12 @@ and every write returned `ERR`. Each game now creates the parent and child in
 
 | File | Change |
 |---|---|
-| `TamaDigi.ino` | add `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (save → release → verify hub → restart); short press calls `onSwipeV(1)` |
+| `TamaDigi.ino` | add `TAMAHUB_APP/VER` tags; include `multiboot.h`; `mboot::begin()` in `setup()`; 2 s hold handler in `loop()` (save → release → verify hub → restart); short press calls `onSwipeV(1)`; Korean text layer, `textW()`-based layouts, UTF-8-safe battle message wrap, `dexName()` in every name slot |
+| `i18n.h`, `i18n.cpp` | English + Korean only; `lang2` NVS key; Korean string table and medal names; `dexName()` |
+| `dex.h` | `DEX_NAME_KO` (87 names + the index-0 placeholder) plus `ELEMENT_NAME_KO` / `ATTR_NAME_KO`; English tables untouched |
+| `types.h` | `typeName()` / `attrName()` return the active language |
+| `battle.h`, `link.h` | name fields widened from 12 to 24 bytes for Korean names; the link build tag hashes `sizeof(LinkMon)`, so old and new peers refuse to pair instead of misreading |
+| `backs.h` | **deleted**: the 722 KB of embedded backdrop art is replaced by the procedural `drawScene()` the explore screen already used |
 | `pet.cpp` | `resumeAt` in `syncClock()` |
 | `sdmon.cpp` | `MONS_ROOT`; pack marker and `thumbs.bin` comparison use it; `PUT` is restricted to `/tamadigi/mons/` (upstream `mons/…` is rewritten); `PUT` removes an existing file first so a resumed/retried upload replaces it instead of appending |
 | `audio.cpp` | default volume 4/10; one-time `volfix` migration moves the old default 7 → 4 |
@@ -127,12 +175,14 @@ A new, self-contained app that can live in any v2 slot.
 
 ## Not patched on purpose
 
-- **Save formats / keys**: unchanged. Existing `tamapoke` / `tamadigi` /
-  `tamanaruto` NVS data remains readable.
+- **Save formats / keys**: the pet, party, box and badge formats are unchanged.
+  Existing `tamapoke` / `tamadigi` / `tamanaruto` NVS data remains readable. The
+  only new key is `lang2` (UI language); the old `lang` key is left untouched.
 - **PWR button**: still only power / screen-off / flush. The 4 s AXP2101
   hardware cutoff is untouched.
-- **In-game UI**: no menu entry was added to any game. Switching is a
-  physical-button gesture only, so touch targets and layouts stay identical.
+- **In-game UI**: no screen was added or removed. The language selector that
+  upstream already had now offers two languages instead of six; switching is
+  still a physical-button gesture for the hub.
 - **Internal FATFS**: still unused by all games; sprites come from microSD.
 
 ## Manual operations that can still wipe shared data

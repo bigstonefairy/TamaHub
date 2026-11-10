@@ -27,13 +27,18 @@ upstream changes its sprite set. TamaPoke is split into a base pack (#1–251) a
 a Gen-3 update pack (#252–386 + the full 386-entry `thumbs.bin`); both are
 required.
 
+TamaDigi's generated `backs.h` (embedded battle backdrops) is no longer
+vendored: battles reuse the procedural `drawScene()` and the file was deleted,
+which is where most of the ~260 KB firmware reduction came from. Do not copy it
+back when updating TamaDigi; see [`PATCHES.md`](PATCHES.md).
+
 ## Updating a game
 
 1. Copy the new upstream sources over `games/<Game>/`, keeping `multiboot.h`
    and the patched files.
 2. Re-apply the patches from `PATCHES.md` (or diff against the previous
    commit).
-3. Build and check the app still fits its 3 MB slot:
+3. Build and check the app still fits its 2 MB slot:
 
    ```powershell
    .\tools\build_all.ps1 -SkipHub

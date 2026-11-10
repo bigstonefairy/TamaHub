@@ -291,6 +291,25 @@ static const DigiEvo EVO_TBL[EVO_COUNT] = {
   { 84, 87, 0, 255, 0, 255, 15 },  // EXTYRANNOMON -> GAIOUMON
 };
 
+// Korean roster, indexed by dex id. Kept beside the English name in DEX_TBL
+// rather than duplicating the whole struct; see dexName() in i18n.cpp.
+static const char *const DEX_NAME_KO[DEX_COUNT + 1] = {
+  "?", "보타몬", "코로몬", "아구몬", "베타몬", "그레이몬", "티라노몬", "데비몬", "메라몬", "에어드라몬", "시드라몬", "누메몬", "메탈그레이몬", "마메몬", "몬재몬", "블리츠그레이몬",
+  "반초마메몬", "신몬재몬", "푸니몬", "츠노몬", "가부몬", "엘레크몬", "카부테리몬", "가루몬", "엔젤몬", "프리지몬", "버드라몬", "와몬", "베지몬", "스컬그레이몬", "메탈마메몬", "베이더몬",
+  "스컬마몬", "크레스가루몬", "에브몬", "포요몬", "토코몬", "파타몬", "쿠네몬", "유니몬", "켄타루몬", "오그레몬", "바케몬", "셸몬", "드리모게몬", "스카몬", "안드로몬", "기로몬", "에테몬",
+  "키메라몬", "하이안드로몬", "고쿠몬", "반쵸레오몬", "밀레니엄몬", "유라몬", "타네몬", "피요몬", "팔몬", "모노크로몬", "코카트리몬", "레오몬", "쿠가몬", "실라몬", "모쟈몬", "나니몬",
+  "메가드라몬", "피콜로몬", "디지타마몬", "다크드라몬", "블룸로드몬", "간쿠몬", "주루몬", "파구몬", "가지몬", "기자몬", "다크티라노몬", "사이크로몬", "데비드라몬", "터스크몬", "프라이몬", "델타몬",
+  "레어몬", "메탈티라노몬", "나노몬", "엑스티라노몬", "메카노드라몬", "라이덴몬", "가이오몬"
+};
+
+// Element and attribute labels for the Korean UI (see typeName()/attrName()).
+static const char *const ELEMENT_NAME_KO[TYPE_COUNT] = {
+  "중립", "불꽃", "물", "식물", "전기", "바람", "대지", "빛", "어둠"
+};
+static const char *const ATTR_NAME_KO[ATTR_COUNT] = {
+  "백신", "데이터", "바이러스", "프리"
+};
+
 // Which V-Pet version an egg comes from. A version owns a block of the dex
 // and its egg hatches into the version's Baby I.
 struct RegionInfo {

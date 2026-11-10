@@ -26,6 +26,11 @@ firmwares for one board. The original authors did the hard part.
   respective rights holders.
 - Naruto names, designs and sprites are © Masashi Kishimoto, Shueisha and Bandai.
   TamaNaruto's Naruto sprites are ripped from *Naruto: Ninja Council 1 & 2*.
+- Korean Pokémon and Digimon names are the official Korean localisations of those
+  characters (© Nintendo / The Pokémon Company and © Bandai respectively). The
+  Korean UI text and the English→Korean string tables were written for TamaHub.
+- TamaDigi draws its battle and explore backdrops procedurally at runtime; no
+  backdrop images ship in the firmware.
 - Sprite packs are not authored by this project; they are the same assets the
   upstream projects distribute.
 - `web/sd/tamapoke/sprites.pak` + `sprites-gen3-update.pak` (773 unique files),
@@ -46,7 +51,11 @@ firmwares for one board. The original authors did the hard part.
   BSD-2-Clause
 - [SensorLib](https://github.com/lewisxhe/SensorLib) — MIT
 - [XPowersLib](https://github.com/lewisxhe/XPowersLib) — MIT
-- [U8g2](https://github.com/olikraus/u8g2) — BSD-2-Clause (TamaPoke CJK font data)
+- [U8g2](https://github.com/olikraus/u8g2) — BSD-2-Clause (CJK font data for
+  TamaPoke and TamaDigi)
+- [GNU Unifont](https://unifoundry.com/unifont/) via U8g2's
+  `unifont_t_korean2` — © 1998–2024 Roman Czyborra, Paul Hardy, Qianqian Fang
+  and contributors; SIL OFL 1.1 / GPLv2+ with the GNU font embedding exception
 - [ESP32 Arduino core](https://github.com/espressif/arduino-esp32) — LGPL-2.1
 - [ESP Web Tools](https://espressif.github.io/esp-web-tools/) — Apache-2.0
 

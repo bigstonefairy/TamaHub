@@ -14,6 +14,10 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
 - **BOOT을 짧게 누르면 뒤로가기**입니다. 전투/미니게임은 빠져나가지 않습니다.
 - 앱의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
   분리되어 있어 서로 덮어쓰지 않습니다.
+- **TamaPoke/TamaDigi UI는 English / 한국어** 두 가지입니다. 기본은 영어이고,
+  게임 안 설정에서 한국어로 바꾸면 UI와 포켓몬·디지몬 이름이 한글로 표시됩니다.
+  (TamaNaruto는 기존 6개 언어 그대로입니다.) 세이브와 SD 스프라이트는 언어와
+  무관합니다.
 - **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.2`, 설치 페이지 상단에
   Hub/Pokémon/Digimon/Naruto/Clock의 빌드 버전이 표시됩니다.
 - 다른 앱을 플레이하는 동안 비활성 앱은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
@@ -153,6 +157,19 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 > 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 앱이 켜진 뒤에 누르세요.
 
+### 언어 (English / 한국어)
+
+TamaPoke와 TamaDigi는 영어/한국어 두 가지입니다. TamaNaruto의 6개 언어 선택은
+그대로입니다.
+
+- **TamaPoke**: 시계 화면의 언어 알약(`EN >` / `KO >`)을 탭합니다.
+- **TamaDigi**: 설정 페이지의 `LANG  EN >` 행을 탭합니다.
+- 바꾼 언어는 NVS(`lang2`)에 저장되어 재부팅해도 유지됩니다. 처음 설치하면 영어입니다.
+- 한국어에서는 UI 문구와 **포켓몬/디지몬 이름**이 한글이 됩니다. 기술 이름과
+  도움말 화면은 영어 그대로이고, 세이브·도감·SD 스프라이트는 영향을 받지 않습니다.
+- 영어 화면은 기존 5×7 폰트를 그대로 쓰고, 한국어는 U8g2의 16px 유니폰트를
+  Arduino_GFX로 그립니다. 한글 음절 폭이 넓어 일부 긴 문구는 자동으로 작아집니다.
+
 ### 일시정지 정책
 
 - 한 게임을 플레이하는 동안 나머지 두 게임은 나이/스탯이 줄지 않습니다.
@@ -168,6 +185,8 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 ## 3. SD 카드
 
 세 게임 모두 스프라이트를 microSD에서 읽고, 경로가 겹치지 않도록 게임별 루트로 분리했습니다.
+배경 아트는 SD에서 읽지 않습니다. TamaDigi는 전투·탐험 배경을 런타임에 절차적으로
+그리므로(예전에 이미지로 내장하던 배경을 제거) SD에는 스프라이트만 있으면 됩니다.
 
 ### 웹에서 바로 넣기 (권장)
 
@@ -259,7 +278,7 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
   - `GFX Library for Arduino` **1.6.7**
   - `SensorLib` **0.4.1**
   - `XPowersLib` **0.3.3**
-  - `U8g2` **2.36.19** (TamaPoke의 CJK 글꼴 데이터)
+  - `U8g2` **2.36.19** (TamaPoke·TamaDigi의 한국어 CJK 글꼴 데이터)
 
 ```powershell
 .\tools\bin\arduino-cli.exe core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
@@ -370,7 +389,7 @@ ota_3,    app,  ota_3,   0x820000, 0x200000,
 ota_4,    app,  ota_4,   0xA20000, 0x200000,
 ```
 
-- 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.73MB, TamaDigi 약 1.67MB,
+- 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.78MB, TamaDigi 약 1.41MB,
   TamaNaruto 약 1.72MB, TamaClock 약 0.44MB로 여유가 있습니다.
 - `nvs`(64KB)와 `otadata`(8KB)는 **v1과 같은 주소**입니다. 파티션 테이블만 다시 써도
   세이브는 유지됩니다. `tools/check_layout.py`가 v2 값과 다르면 빌드를 거부합니다.

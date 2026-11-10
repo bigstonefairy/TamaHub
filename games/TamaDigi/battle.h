@@ -27,7 +27,7 @@ struct Combatant {
   bool recharge = false;     // EF_RECHARGE spent this creature's next turn
   uint8_t charging = 0;      // EF_CHARGE move already wound up
   bool variant = false;        // which sprite variant to stream
-  char name[12] = "";
+  char name[24] = "";  // Korean names are up to 18 UTF-8 bytes
 
   bool fainted() const { return hp == 0; }
 };

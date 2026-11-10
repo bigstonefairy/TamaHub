@@ -1,9 +1,12 @@
 #pragma once
 #include <Arduino.h>
 
-// Idiomas soportados. La fuente del firmware no tiene acentos: ambos textos van
-// sin tildes ni enes (igual que ya iba el espanol).
-enum Lang : uint8_t { LANG_ES = 0, LANG_EN, LANG_FR, LANG_DE, LANG_IT, LANG_PT, LANG_COUNT };
+// Idiomas soportados: ingles y coreano (TamaHub). El coreano usa la fuente CJK de
+// U8g2 porque la 5x7 de Arduino_GFX no tiene hangul; el ingles sigue con la
+// clasica y no cambia ni un pixel.
+enum Lang : uint8_t { LANG_EN = 0, LANG_KO, LANG_COUNT };
+// idiomas que necesitan la fuente U8g2 y texto UTF-8 en vez de la tabla CP437
+#define LANG_IS_CJK(l) ((l) == LANG_KO)
 #define LANG_DEFAULT LANG_EN  // idioma por defecto: ingles
 
 extern Lang gLang;  // idioma activo (definido en i18n.cpp)
@@ -182,6 +185,7 @@ enum StrId : uint8_t {
 };
 
 const char *T(StrId id);       // texto en el idioma activo
+const char *dexName(int16_t dex);  // nombre de la especie en el idioma activo
 const char *moveName(uint8_t move);  // localized display name; move ID stays stable
 const char *medalName(int i);  // banner de medalla (MED_COUNT)
 const char *medalLabel(int i); // etiqueta corta de medalla

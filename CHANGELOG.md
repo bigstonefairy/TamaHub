@@ -1,5 +1,53 @@
 # Changelog
 
+## v2.1.0 — 2026-11-10
+
+English + Korean UI for TamaPoke and TamaDigi, and a much smaller TamaDigi image.
+
+### Added
+
+- **Korean UI** in TamaPoke and TamaDigi. Every UI string, status line, button,
+  dialog and battle message is translated, along with the **Pokémon and Digimon
+  names** (386 + 87 entries) and the element/attribute labels. English stays the
+  default; the selector is the language pill on TamaPoke's clock screen and the
+  `LANG` row on TamaDigi's settings page.
+- Korean text is drawn with U8g2's 16 px unifont through Arduino_GFX's U8g2
+  support. English keeps the original 5×7 font, pixel for pixel.
+- Documentation of the text layer, the NVS key and the checks to run on hardware
+  (`docs/PATCHES.md`, `docs/TESTING.md`).
+
+### Changed
+
+- **Only English and Korean remain** (was ES/EN/FR/DE/IT/PT). Dropping five
+  copies of every string paid for the Korean glyphs.
+- Move names and the help screens stay English in both languages.
+- Layouts that used to count characters now measure the rendered width, so long
+  Korean labels shrink instead of overflowing. Battle/dialog/name buffers were
+  widened for up to 18 UTF-8 bytes per name.
+- **TamaDigi no longer embeds its battle backdrops** (`backs.h`, 722 KB). Battles
+  reuse the procedural `drawScene()` the explore screen already had.
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.36.2 | 783,232 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.0.1 | 1,409,728 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,064 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.0.0 | 435,616 B | `0x820000` (`ota_3`) |
+
+### Notes
+
+- Existing saves are untouched. The language lives under the new NVS key
+  `lang2`, so the old `lang` value (where `1` meant English) is ignored once and
+  the game starts in English after the update.
+- The link handshake hashes `sizeof(LinkMon)`, which grew with the name buffers:
+  a v2.1 build will refuse to pair with a v2.0 build rather than misread names.
+  Update both devices.
+
+---
+
 ## v2.0.0 — 2026-11-09
 
 Five-slot, user-arrangeable build with a clock and quieter audio.
