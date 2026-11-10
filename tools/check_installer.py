@@ -35,6 +35,7 @@ APP_OFFSETS = {
     "tamadigi.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
     "tamanaruto.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
     "tamaclock.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
+    "tamanav.bin": ("ota_4", _LAYOUT["ota_4"]["offset"]),
 }
 
 REQUIRED_FILES = (
@@ -44,6 +45,7 @@ REQUIRED_FILES = (
     "manifest-ota1.json",
     "manifest-ota2.json",
     "manifest-ota3.json",
+    "manifest-ota4.json",
     "index.html",
     "bootloader.bin",
     "partitions.bin",
@@ -52,6 +54,7 @@ REQUIRED_FILES = (
     "tamadigi.bin",
     "tamanaruto.bin",
     "tamaclock.bin",
+    "tamanav.bin",
 )
 
 # Sprite bundles used by the Web Serial uploader, relative to web/dist.

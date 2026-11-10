@@ -33,12 +33,11 @@ SLOTS = {
     "ota_1": ("tamadigi.bin", "TamaDigi"),
     "ota_2": ("tamanaruto.bin", "TamaNaruto"),
     "ota_3": ("tamaclock.bin", "TamaClock"),
+    "ota_4": ("tamanav.bin", "TamaNav"),
 }
 
-# Slots that get a default assignment and a static manifest.  ota_4 is
-# reserved for TamaNav and stays empty until that app exists; the installer
-# page can still write any app there with a generated manifest.
-STATIC_SLOTS = ("factory", "ota_0", "ota_1", "ota_2", "ota_3")
+# Slots that get a default assignment and a static manifest.
+STATIC_SLOTS = ("factory", "ota_0", "ota_1", "ota_2", "ota_3", "ota_4")
 
 BUILD_BINS = {
     "factory": os.path.join("hub", "hub.ino.bin"),
@@ -46,6 +45,7 @@ BUILD_BINS = {
     "ota_1": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
     "ota_2": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
     "ota_3": os.path.join("TamaClock", "TamaClock.ino.bin"),
+    "ota_4": os.path.join("TamaNav", "TamaNav.ino.bin"),
 }
 
 # Sprite packs served next to the installer for the Web Serial SD uploader.
@@ -87,6 +87,7 @@ VERSION_SOURCES = {
     "ota_1": (os.path.join("games", "TamaDigi"), "FW_VERSION"),
     "ota_2": (os.path.join("games", "TamaNaruto"), "TAMAHUB_APP_VERSION"),
     "ota_3": (os.path.join("apps", "TamaClock"), "TAMAHUB_APP_VERSION"),
+    "ota_4": (os.path.join("apps", "TamaNav"), "TAMAHUB_APP_VERSION"),
 }
 
 

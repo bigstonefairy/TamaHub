@@ -145,7 +145,7 @@
 <body>
 <main>
   <h1><span class="poke">Tama</span><span class="digi">Hub</span></h1>
-  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto, Clock을 한 기기에, 부팅 메뉴로.</p>
+  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto, Clock, 내비를 한 기기에, 부팅 메뉴로.</p>
   <p class="versions" id="versions">버전 확인 중…</p>
 
   <section>
@@ -163,7 +163,8 @@
        앱은 이름표를 스스로 갖고 있어 <strong>순서와 종류를 바꿔도</strong> 허브가 알아서 표시합니다.</p>
     <div class="slot-picker" id="slot-picker"></div>
     <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
-      내비게이션은 데이터 소스가 정해지지 않아 아직 비어 있습니다. 지금은 <code>ota_4</code>를 예약 슬롯으로 두세요.
+      내비게이션(TamaNav)은 폰의 BLE 내비 알림을 받아 화면에 턴바이턴만 그립니다.
+      폰 동반 앱이 없으면 대기 화면에 머물며, 시리얼 `DEMO`로 화면을 확인할 수 있습니다.
     </p>
 
     <div class="install big">
@@ -303,7 +304,7 @@
       <tr><td><code>ota_1</code></td><td>앱 슬롯 2</td><td>0x420000</td><td>2 MB</td></tr>
       <tr><td><code>ota_2</code></td><td>앱 슬롯 3</td><td>0x620000</td><td>2 MB</td></tr>
       <tr><td><code>ota_3</code></td><td>앱 슬롯 4</td><td>0x820000</td><td>2 MB</td></tr>
-      <tr><td><code>ota_4</code></td><td>앱 슬롯 5 (내비 예약)</td><td>0xA20000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_4</code></td><td>앱 슬롯 5 (내비)</td><td>0xA20000</td><td>2 MB</td></tr>
     </table>
     <p style="margin-top:12px">
       <code>boot_app0.bin</code>은 <strong>0xE000</strong>에 쓰지 않습니다. 이 주소는 64 KB NVS 내부입니다.
@@ -890,9 +891,9 @@
     { id: 'digi',   name: 'Digimon',  letter: 'D', color: '#4da3ff', bin: 'tamadigi.bin' },
     { id: 'naruto', name: 'Naruto',   letter: 'N', color: '#b06cff', bin: 'tamanaruto.bin' },
     { id: 'clock',  name: 'Clock',    letter: 'C', color: '#ffd23f', bin: 'tamaclock.bin' },
-    { id: 'nav',    name: '내비게이션', letter: 'M', color: '#a81fff', bin: null },
+    { id: 'nav',    name: '내비게이션', letter: 'M', color: '#a81fff', bin: 'tamanav.bin' },
   ];
-  const DEFAULT_LAYOUT = ['poke', 'digi', 'naruto', 'clock', ''];
+  const DEFAULT_LAYOUT = ['poke', 'digi', 'naruto', 'clock', 'nav'];
   const manifestUrls = new Map();
 
   const appById = (id) => APPS.find((a) => a.id === id) || null;
@@ -1038,6 +1039,7 @@
       ['Digimon', 'manifest-ota1.json'],
       ['Naruto', 'manifest-ota2.json'],
       ['Clock', 'manifest-ota3.json'],
+      ['내비', 'manifest-ota4.json'],
     ];
     try {
       const rows = await Promise.all(items.map(async ([label, file]) => {

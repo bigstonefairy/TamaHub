@@ -1,5 +1,57 @@
 # Changelog
 
+## v2.3.0 — 2026-11-10
+
+TamaNav fills the reserved fifth slot: turn-by-turn guidance forwarded from a
+phone over BLE.
+
+### Added
+
+- **TamaNav 1.0** (`ota_4`, `0xA20000`): a BLE peripheral that draws a turn
+  arrow, the distance to the next manoeuvre, the remaining time and the ETA.
+  There is no GPS and no map, so the phone's navigation app does the routing and
+  the watch only renders numbers — no Korean font or road parsing on the device.
+- BLE service `4e415600-…` with RX `…01` (write) and TX `…02` (notify), a 16-byte
+  guidance packet (icon, distance, remaining time, flags, speed, source, ETA,
+  trip distance/time) and 8-byte `HELLO` / `STATUS` replies.
+- `docs/NAVIGATION.md`: the packet layout, icon table, a Kotlin
+  `NotificationListenerService` sketch for Android, and a no-code Tasker +
+  AutoNotification recipe.
+- Serial commands for hardware-free checks: `DEMO`, `ICON=`, `DIST=`, `REMAIN=`,
+  `SPD=`, `SRC=`, `ARRIVE`, `OFFROUTE`, `CLR`, `STATUS`, `BRIGHT=`.
+
+### Changed
+
+- The installer's default layout now fills `ota_4` with TamaNav instead of
+  leaving it empty. Choose **비움** for that slot if you do not need it.
+- The clock-style ring (radius 224) is used on the nav screens too, so nothing
+  sits outside the display's circle.
+- `tools/build_all.ps1`, `tools/make_installer.py`, `tools/check_installer.py`
+  and the CI workflow know about the fifth app (`tamanav.bin`,
+  `manifest-ota4.json`).
+- **Fixed** `tools/setup_windows_toolchain.ps1`: running the build from inside
+  the `C:\Users\Public\tamahub` junction made it "repoint" the junction onto
+  itself and delete it. It now compares against the resolved repository path.
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.36.2 | 783,232 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.0.1 | 1,409,728 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,064 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.1.0 | 530,352 B | `0x820000` (`ota_3`) |
+| TamaNav | 1.0.0 | 721,040 B | `0xA20000` (`ota_4`) |
+
+### Notes
+
+- The Android companion app is not bundled: the repository documents the
+  protocol and the two ways to drive it. Until that app exists the slot shows
+  the pairing screen, and `DEMO` on the serial port exercises the UI.
+- iOS cannot read other apps' notifications, so TamaNav is Android-only for now.
+- Hardware checks live in `docs/TESTING.md` §9.
+
 ## v2.2.0 — 2026-11-10
 
 TamaClock 1.1: bigger time, themed faces with hourly animations, battery, and

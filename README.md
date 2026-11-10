@@ -5,8 +5,9 @@
 설치 페이지: <https://bigstonefairy.github.io/TamaHub/>
 
 Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
-**TamaDigi(Digimon)**, **TamaNaruto(Naruto)**, **TamaClock** 을 함께 즐기는
-멀티앱 빌드입니다. v2부터 **5개의 동일한 2MB 슬롯**에 앱을 원하는 순서로 배치할 수 있습니다.
+**TamaDigi(Digimon)**, **TamaNaruto(Naruto)**, **TamaClock**, **TamaNav(턴바이턴 내비)**
+을 함께 즐기는 멀티앱 빌드입니다. v2부터 **5개의 동일한 2MB 슬롯**에 앱을 원하는
+순서로 배치할 수 있습니다.
 
 - 부팅/전환할 때만 **앱 선택 허브(TamaHub)** 가 뜹니다.
 - 앱을 고르면 그 앱으로 재부팅하고, **다음 전원 ON부터는 마지막 앱으로 바로** 이어집니다.
@@ -34,7 +35,7 @@ TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
   ├─ 슬롯 2 → 예: TamaDigi v1.0.1
   ├─ 슬롯 3 → 예: TamaNaruto v1.2.0
   ├─ 슬롯 4 → 예: TamaClock v1.1.0
-  └─ 슬롯 5 → 비움 (내비게이션 예약)
+  └─ 슬롯 5 → 예: TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
 
 앱 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
 앱 중 BOOT 짧게   → 뒤로가기 (전투/미니게임 제외)
@@ -402,23 +403,28 @@ ota_4,    app,  ota_4,   0xA20000, 0x200000,
 ```
 
 - 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.78MB, TamaDigi 약 1.41MB,
-  TamaNaruto 약 1.72MB, TamaClock 약 0.53MB로 여유가 있습니다.
+  TamaNaruto 약 1.72MB, TamaClock 약 0.53MB, TamaNav 약 0.72MB로 여유가 있습니다.
 - `nvs`(64KB)와 `otadata`(8KB)는 **v1과 같은 주소**입니다. 파티션 테이블만 다시 써도
   세이브는 유지됩니다. `tools/check_layout.py`가 v2 값과 다르면 빌드를 거부합니다.
 - 앱을 어느 슬롯에 넣어도 됩니다. 허브는 각 이미지의 `TAMAHUB_APP:<name>` /
   `TAMAHUB_VER:<version>` 태그를 스캔해 이름·버전을 표시합니다.
 
-### 기본 배치와 TamaClock
+### 기본 배치
 
 설치 페이지의 기본 배치는 `ota_0` TamaPoke, `ota_1` TamaDigi, `ota_2` TamaNaruto,
-`ota_3` TamaClock, `ota_4` 비움입니다. `ota_4`는 턴바이턴 내비게이션용으로
-예약되어 있으며, 데이터 소스가 정해지면 앱을 추가합니다.
+`ota_3` TamaClock, `ota_4` TamaNav입니다. 내비가 필요 없으면 슬롯 5를 **비움**으로
+두고 설치하면 됩니다.
 
-### 내비게이션 슬롯
+### 내비게이션 (TamaNav)
 
-기판에 GPS/지자기가 없어 폰 없이는 경로 탐색이 불가능합니다. Android BLE 동반 앱,
-iPhone 동반 앱, 외장 GPS 중 하나를 정해야 `TamaNav`를 구현할 수 있습니다.
-그때까지 `ota_4`는 비워 두세요.
+기판에 GPS/지자기가 없어 폰 없이는 경로 탐색이 불가능합니다. TamaNav는 폰의 BLE
+내비 알림을 16바이트 패킷으로 받아 **회전 화살표 + 남은 거리 + 남은 시간/ETA**만
+그립니다. 도로명·한글은 기기에 오지 않으므로 폰트도 필요 없습니다.
+
+- 폰에서 `TamaNav`로 BLE 연결 → 서비스 `4e415600-…`, RX `…01`에 쓰기, TX `…02` 알림.
+- 아이콘·거리·시간만 그리므로 지도 앱(네이버/카카오/구글)은 폰에서 그대로 사용합니다.
+- 폰 동반 앱이 아직 없어도 기기 화면은 시리얼 `DEMO`로 확인할 수 있습니다.
+- 프로토콜과 폰 쪽 구현 방법은 [`docs/NAVIGATION.md`](docs/NAVIGATION.md).
 
 ### 슬롯 재배치
 
@@ -453,6 +459,8 @@ NVS는 건드리지 않으므로 세이브와 설정은 그대로입니다.
 - 허브: `1`–`5` 즉시 실행, `SLOTS` 상태 출력, `R` 재스캔
 - TamaClock: `SET=YYYY-MM-DD HH:MM:SS`, `TIME=<epoch>`, `12H`, `24H`, `STATUS`,
   `FACE=n|NEXT|PREV`, `COLOR=n|NEXT`, `BRIGHT=n`, `SLEEP`, `WAKE`, `SHOW`, `SD`, `PACK`, `AUTO`, `REAL`
+- TamaNav: `STATUS`, `ICON=n`, `DIST=m`, `REMAIN=s`, `SPD=k`, `SRC=n`, `ARRIVE`,
+  `OFFROUTE`, `CLR`, `DEMO`, `BRIGHT=n`
 - 게임: 업스트림 명령 유지 (`PUT`, `LS`, …)
 
 ---
@@ -465,6 +473,7 @@ games/TamaPoke/       TamaPoke expanded v1.36.2 + 멀티부팅 패치
 games/TamaDigi/       TamaDigi v1.0.1 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
 apps/TamaClock/       TamaClock v1.1.0 (큰 디지털 시계, 테마 4종, 스와이프, 수면)
+apps/TamaNav/         TamaNav v1.0.0 (BLE 턴바이턴 표시, 폰 연동)
 partitions.csv        동결된 v2 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
                       (setup_windows_toolchain.ps1: 한글 경로 우회)
@@ -472,7 +481,7 @@ web/                  GitHub Pages 설치 페이지 (슬롯 선택 + 동적 매�
 web/sd/               웹 SD 업로더용 스프라이트 팩 (TPAK)
 docs/                 설계, 하드웨어, 패치, 업스트림 기록
 CHANGELOG.md          릴리스 노트
-.github/workflows/    CI (허브 + 3게임 + Clock 빌드 + 크기 검사 + Pages)
+.github/workflows/    CI (허브 + 3게임 + Clock + Nav 빌드 + 크기 검사 + Pages)
 ```
 
 패치 목록과 이유는 [`docs/PATCHES.md`](docs/PATCHES.md),
