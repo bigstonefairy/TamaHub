@@ -154,7 +154,8 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 **짧게 누르면 뒤로가기**입니다. TamaDigi/Naruto는 기존 아래로 스와이프와 같은
 경로를 타고, TamaPoke는 키보드/도움말/시계/도감/게임 메뉴/카드만 닫습니다.
-전투와 미니게임은 짧은 눌림으로 중단되지 않습니다. TamaClock은 12/24시간을 전환합니다.
+전투와 미니게임은 짧은 눌림으로 중단되지 않습니다. TamaClock은 12/24시간을 전환하고,
+TamaNav는 밝기를 4단계로 조절합니다.
 
 ### TamaClock 조작
 
