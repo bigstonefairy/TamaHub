@@ -7,7 +7,7 @@
 enum Lang : uint8_t { LANG_EN = 0, LANG_KO, LANG_COUNT };
 // idiomas que necesitan la fuente U8g2 y texto UTF-8 en vez de la tabla CP437
 #define LANG_IS_CJK(l) ((l) == LANG_KO)
-#define LANG_DEFAULT LANG_EN  // idioma por defecto: ingles
+#define LANG_DEFAULT LANG_KO  // idioma por defecto: coreano (TamaHub)
 
 extern Lang gLang;  // idioma activo (definido en i18n.cpp)
 

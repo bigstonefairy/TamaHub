@@ -8,7 +8,7 @@ running, the AXP2101 for battery state and the CST9217 touch panel. Any 2 MB
 
 | Gesture | Action |
 |---|---|
-| Swipe up / down | Next / previous face |
+| Swipe up / down | Shows `DIGITAL ONLY` (themed faces are parked) |
 | Long press (0.8 s) | Next theme colour |
 | Tap | 12 / 24 hour |
 | PWR short press | Screen off / on |
@@ -25,7 +25,13 @@ radius 196, which left the bottom help line outside the ring.
 
 ## Faces
 
-| # | Face | Scene |
+Only the digital face is enabled in v1.1.1. The themed scenes below still
+exist in `scenes.h`, but `THEMED_FACES_ENABLED` is `0`: swiping shows
+`DIGITAL ONLY` and `FACE=` forces face 0. The NVS `face` value is left
+untouched so a later firmware can restore the chosen face. The plan is to
+replace the procedural art with SD packs, which `clockpack.h` already loads.
+
+| # | Face | Scene (parked) |
 |---|---|---|
 | 0 | `DIGITAL` | Large 12× time, date, weekday, battery, second ticks |
 | 1 | `POKEMON` | Poké Ball, splits open once an hour |
@@ -33,9 +39,12 @@ radius 196, which left the bottom help line outside the ring.
 | 3 | `MARIO` | Platform scene; the walker jumps and a coin pops out |
 | 4 | `ZELDA` | Triforce, sword and pedestal; pieces light in sequence |
 
-Themed faces play their animation for the first 20 seconds of every hour
-(`minute == 0 && second < 20`). `SHOW` on the serial port replays it on demand.
-The rest of the time they idle at about 8 fps; the hourly show runs at 12 fps.
+The digital layout: time y 120 (size 12), date y 228, weekday y 260, hints at
+y 348/362 (size 1) and the version at y 396. Those rows keep every glyph corner
+inside the radius-224 ring, and the block reads slightly above centre.
+
+The themed faces used to play their animation for the first 20 seconds of every
+hour (`minute == 0 && second < 20`). `SHOW` replays it on demand.
 
 ### SD animation packs (optional)
 
@@ -119,7 +128,7 @@ SET=YYYY-MM-DD HH:MM:SS
 TIME=<epoch>
 12H | 24H
 AUTO | REAL
-FACE=0..4 | FACE=NEXT | FACE=PREV
+FACE=0..4 | FACE=NEXT | FACE=PREV   (forces DIGITAL while themed faces are parked)
 COLOR=0..6 | COLOR=NEXT
 BRIGHT=1..255
 SLEEP | WAKE

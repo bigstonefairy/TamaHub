@@ -12,6 +12,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Preferences.h>
+#include <time.h>
 #include <esp_sleep.h>
 #include "Arduino_GFX_Library.h"
 #include "TouchDrvCSTXXX.hpp"
@@ -39,7 +40,7 @@
 #endif
 
 // Version shown by the TamaHub installer page.
-#define TAMAHUB_APP_VERSION "1.37.0"
+#define TAMAHUB_APP_VERSION "1.38.0"
 
 #if defined(TAMAPOKE_LOCAL_TEST) && defined(TAMAPOKE_GEN3_RELEASE)
 #error "TAMAPOKE_LOCAL_TEST and TAMAPOKE_GEN3_RELEASE are mutually exclusive"
@@ -48,9 +49,9 @@
 #error "Gen-3 source requires an explicit local-test or release build profile"
 #endif
 #ifdef TAMAPOKE_LOCAL_TEST
-#define FW_VERSION "1.37.0-hoenn-walk-local"
+#define FW_VERSION "1.38.0-hoenn-walk-local"
 #elif defined(TAMAPOKE_GEN3_RELEASE)
-#define FW_VERSION "1.37.0"
+#define FW_VERSION "1.38.0"
 #else
 #define FW_VERSION "1.35.3-soft-step"
 #endif
@@ -2003,7 +2004,15 @@ void render() {
     char name[28];
     const char *base = pet.nick[0] ? pet.nick : dexName(pet.speciesId);
     snprintf(name, sizeof(name), T(S_NAME_FMT), pet.shiny ? "*" : "", base, pet.level());
-    drawHeader(name, gNight ? UI_INK_NIGHT : d.accent, statusMsg());
+    drawHeader(name, gNight ? UI_INK_NIGHT : d.accent, nullptr);
+    drawMainClock();
+    // Status moved down: the clock now owns the old status slot, and the text
+    // sits just above the pet without touching the sprite.
+    const char *status = statusMsg();
+    gfx->setTextColor(inkColor());
+    setSize(2);
+    setCur(CX - textW(status, 2) / 2, 116);
+    printT(status);
     drawStreakBadge();
     drawStepsHud();
     drawPet();
@@ -3235,6 +3244,20 @@ void performBattleAction(BattleAction action) {
   battleAttackMenuUntil = 0;
   battleLastAction = action;
   battleTurn = stepBattle(battleRun, action, (uint8_t)random(100));
+  // Easy mode: any attack is a guaranteed one-hit KO, even if the roll dodged
+  // or the enemy would have moved first. Resolve it before the message so the
+  // damage figure, the empty HP bar and the win banner all agree.
+  const bool attacking = action == BATTLE_ATTACK || action == BATTLE_ATTACK_QUICK ||
+                         action == BATTLE_ATTACK_HEAVY;
+  if (easyMode && attacking && !battleTurn.battleEnded) {
+    uint16_t left = battleRun.enemyHp;
+    battleRun.enemyHp = 0;
+    battleTurn.playerDamage = (uint16_t)(battleTurn.playerDamage + left);
+    battleTurn.enemyDodged = false;
+    battleTurn.enemyDamage = 0;
+    battleTurn.battleEnded = true;
+    battleTurn.playerWon = true;
+  }
   if (battleTurn.restFailed) {
     snprintf(battleMsg, sizeof(battleMsg), T(S_NO_REST));
   } else if (battleTurn.counterReady) {
@@ -4786,10 +4809,10 @@ static const int EXP_HUD_Y = 106;
 static const int EXP_HUD_W = 112;
 static const int EXP_HUD_H = 34;
 
-// Der obere Rand des runden Displays ist an den Ecken nicht sichtbar. Der
-// Schritt-Chip sitzt deshalb links ueber dem Namen, innerhalb der Kreisflaeche;
-// rechts bleibt der Expeditions-Hinweis frei.
-static const int STEP_HUD_X = 130;
+// The step counter sits in the top band, horizontally centred. It has no fill
+// any more: just the level-coloured outline and the text, so it stops being the
+// brightest thing on the screen. The expedition hint keeps the right side free.
+static const int STEP_HUD_X = CX - 126 / 2;  // centered: 170
 static const int STEP_HUD_Y = 24;
 static const int STEP_HUD_W = 126;
 static const int STEP_HUD_H = 22;
@@ -4813,9 +4836,10 @@ void drawStepsHud() {
                    pet.stepsToday >= 500UL ? UI_BAR_OK : UI_TRACK;
   char label[24];
   snprintf(label, sizeof(label), T(S_STEPS_FMT), (unsigned long)pet.stepsToday);
-  gfx->fillRoundRect(STEP_HUD_X, STEP_HUD_Y, STEP_HUD_W, STEP_HUD_H, 8, UI_WHITE);
+  // No white fill: the pill was the brightest thing on the screen. Keep only
+  // the level-coloured outline so the counter still reads on the scenery.
   gfx->drawRoundRect(STEP_HUD_X, STEP_HUD_Y, STEP_HUD_W, STEP_HUD_H, 8, color);
-  gfx->setTextColor(UI_INK);
+  gfx->setTextColor(inkColor());
   setSize(1);
   setCur(STEP_HUD_X + (STEP_HUD_W - textW(label, 1)) / 2,
          STEP_HUD_Y + (STEP_HUD_H - textH(1)) / 2);
@@ -5485,10 +5509,44 @@ void drawHeader(const char *name, uint16_t nameColor, const char *msg) {
   setSize(3);
   setCur(CX - textW(name, 3) / 2, 52);
   printT(name);
+  if (!msg || !msg[0]) return;  // the main screen draws its status below the clock
   gfx->setTextColor(inkColor());
   setSize(2);
   setCur(CX - textW(msg, 2) / 2, 90);
   printT(msg);
+}
+
+// Main-screen clock: mirrors TamaClock because both read the same PCF85063.
+// The RTC is only polled every few seconds; the minutes tick locally in
+// between so a 10 fps render does not hammer the I2C bus.
+uint32_t mainClockEpoch() {
+  static uint32_t baseEpoch = 0;
+  static uint32_t baseMillis = 0;
+  const uint32_t now = millis();
+  if (!baseEpoch || now - baseMillis >= 5000UL) {
+    const uint32_t e = rtcEpoch();
+    if (e) {
+      baseEpoch = e;
+      baseMillis = now;
+    }
+  }
+  if (!baseEpoch) return 0;
+  return baseEpoch + (now - baseMillis) / 1000UL;
+}
+
+void drawMainClock() {
+  uint32_t e = mainClockEpoch();
+  char hm[8] = "--:--";
+  if (e) {
+    time_t tt = (time_t)e;
+    struct tm t;
+    gmtime_r(&tt, &t);
+    snprintf(hm, sizeof(hm), "%02d:%02d", t.tm_hour, t.tm_min);
+  }
+  gfx->setTextColor(inkColor());
+  setSize(4);
+  setCur(CX - textW(hm, 4) / 2, 80);
+  printT(hm);
 }
 
 // animacion de la ceremonia (10s): despedida = reverencia con corazones y se

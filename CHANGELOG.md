@@ -1,5 +1,50 @@
 # Changelog
 
+## v2.5.0 — 2026-11-11
+
+TamaClock's layout and face set, the TamaPoke main-screen clock, Korean as the
+default language, and easy mode now wins battles with a single attack.
+
+### Changed
+
+- **TamaClock**: the time moved down from y 92 to 120, so the top corners no
+  longer fall outside the radius-224 ring; date, weekday and the bottom hints
+  moved with it. The clock block now sits slightly above centre. The
+  `SWIPE/TAP/HOLD/PWR` hints are half-size, and the face dots are hidden.
+- **TamaClock themed faces are parked** (`THEMED_FACES_ENABLED 0`): the
+  Pokémon, Digimon, Mario and Zelda procedural scenes no longer appear. Swiping
+  shows `DIGITAL ONLY`; `FACE=` is accepted but forces the digital face. The
+  scenes, the `.tnm` pack loader and the NVS `face` value are kept for the
+  planned SD-pack rewrite.
+- **TamaPoke main screen**: a large 24-hour clock now sits where the status
+  text used to be, reading the same PCF85063 as TamaClock (RTC polled every
+  5 s, minutes ticked locally). The status line moved down to y 116.
+- **TamaPoke step chip**: the white fill is gone (outline + text only) and the
+  chip is centred at x 170 instead of 130.
+- **Korean is the default language** in TamaPoke and TamaDigi
+  (`LANG_DEFAULT LANG_KO`). Existing `lang2` choices are not rewritten, so a
+  device that was already set to English stays English until switched.
+- **Easy mode one-hit wins**: in TamaPoke any attack ends the battle as a win
+  on the first turn; in TamaDigi any damaging move knocks the opponent out
+  before it can act. Status moves are unaffected, and TamaDigi link battles
+  still use the peer's result.
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.38.0 | 784,896 B | `0x220000` (`ota_0`) |
+| TamaDigi | 1.1.1 | 1,411,168 B | `0x420000` (`ota_1`) |
+| TamaNaruto | 1.2.0 | 1,720,080 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.1.1 | 525,056 B | `0x820000` (`ota_3`) |
+| TamaNav | 1.0.0 | 721,056 B | `0xA20000` (`ota_4`) |
+
+### Notes
+
+- Hardware checks for the new layout and easy-mode behaviour are in
+  `docs/TESTING.md` §8 and §10.
+
 ## v2.4.0 — 2026-11-11
 
 Easy mode, game speed and Korean UI fixes for TamaPoke and TamaDigi; the BOOT

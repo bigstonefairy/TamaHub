@@ -14,9 +14,10 @@
 //   BOOT (short)    12 / 24 hour, or wake
 //   BOOT (2 s)      return to TamaHub
 //
-// Faces: digital, Pokemon, Digimon, Mario and Zelda.  Themed faces play an
-// hourly animation; an SD pack in /tamaclock/<name>.tnm replaces the built-in
-// procedural scene.
+// Faces: only the digital face is enabled for now.  The Pokemon, Digimon,
+// Mario and Zelda scenes are parked (THEMED_FACES_ENABLED 0) until they are
+// redone as SD packs (/tamaclock/<name>.tnm); the old procedural code and the
+// pack loader stay in the tree so that work can resume later.
 //
 // Board: Waveshare ESP32-S3-Touch-AMOLED-1.75 (16 MB flash / 8 MB PSRAM)
 
@@ -42,7 +43,7 @@
 #include "scenes.h"
 
 #define TAMAHUB_APP_NAME "TamaClock"
-#define TAMAHUB_APP_VERSION "1.1.0"
+#define TAMAHUB_APP_VERSION "1.1.1"
 
 // TamaHub scans the image for these tags, so the app can live in any slot.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:" TAMAHUB_APP_NAME;
@@ -108,6 +109,9 @@ static const char *const FACE_NAMES[FACE_COUNT] = {"DIGITAL", "POKEMON",
                                                    "ZELDA"};
 static const char *const PACK_NAMES[FACE_COUNT] = {"", "poke", "digi", "mario",
                                                    "zelda"};
+// The themed faces are temporarily unavailable while they are rebuilt around
+// SD animation packs.  Flip this to 1 to bring the procedural scenes back.
+#define THEMED_FACES_ENABLED 0
 
 // ---------------------------------------------------------------- state ------
 static Preferences prefs;
@@ -379,7 +383,7 @@ static void drawDigitalFace() {
       snprintf(hm, sizeof(hm), "%d:%02d", hour12(t.tm_hour), t.tm_min);
     }
   }
-  textCenter(hm, 92, 12, accent());
+  textCenter(hm, 120, 12, accent());
   drawSecondTicks(clockOk ? t.tm_sec : 0);
 
   char date[24] = "RTC NOT SET";
@@ -397,14 +401,15 @@ static void drawDigitalFace() {
                                      "SATURDAY"};
     snprintf(wd, sizeof(wd), "%s", WD[t.tm_wday % 7]);
   }
-  textCenter(date, 202, 3, C_FG);
-  if (clockOk) textCenter(wd, 234, 2, C_DIM);
+  textCenter(date, 228, 3, C_FG);
+  if (clockOk) textCenter(wd, 260, 2, C_DIM);
 
-  drawFaceDots(282);
-  textCenter("SWIPE: FACE   TAP: 12/24", 342, 2, C_DIM);
-  textCenter("HOLD: COLOR   PWR: SLEEP", 366, 2, C_DIM);
-  textCenter("TamaClock v" TAMAHUB_APP_VERSION, 400, 1, C_DIM);
-  drawToast(310);
+  // One face only for now, so the face dots would just be noise.
+  // drawFaceDots(300);
+  textCenter("FACE: DIGITAL ONLY   TAP: 12/24", 348, 1, C_DIM);
+  textCenter("HOLD: COLOR   PWR: SLEEP", 362, 1, C_DIM);
+  textCenter("TamaClock v" TAMAHUB_APP_VERSION, 396, 1, C_DIM);
+  drawToast(316);
 
   gfx->flush();
   dirty = false;
@@ -498,11 +503,15 @@ static void drawThemedFace() {
 }
 
 static void draw() {
+#if THEMED_FACES_ENABLED
   if (face == FACE_DIGITAL) {
     drawDigitalFace();
   } else {
     drawThemedFace();
   }
+#else
+  drawDigitalFace();
+#endif
   lastDraw = millis();
 }
 
@@ -555,12 +564,20 @@ static void applyBrightness(uint8_t b) {
 }
 
 static void setFace(int f) {
+#if THEMED_FACES_ENABLED
   if (f < 0) f = FACE_COUNT - 1;
   face = (uint8_t)(f % FACE_COUNT);
   prefs.putUChar("face", face);
   loadPack();
   flashToast(FACE_NAMES[face]);
   dirty = true;
+#else
+  // Themed faces are parked.  Swiping still gives feedback so the gesture
+  // does not look broken, but the digital face stays put.
+  (void)f;
+  flashToast("DIGITAL ONLY");
+  dirty = true;
+#endif
 }
 
 static void setTheme(int t) {
@@ -793,6 +810,9 @@ void setup() {
   prefs.begin("tamaclock", false);
   face = prefs.getUChar("face", FACE_DIGITAL);
   if (face >= FACE_COUNT) face = FACE_DIGITAL;
+#if !THEMED_FACES_ENABLED
+  face = FACE_DIGITAL;  // old saves may point at a parked theme
+#endif
   theme = prefs.getUChar("theme", 0);
   if (theme >= THEME_COUNT) theme = 0;
   brightness = prefs.getUChar("bright", 200);

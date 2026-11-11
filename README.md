@@ -31,17 +31,17 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
                      (마지막 앱 자동 재개)
 
 TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
-  ├─ 슬롯 1 → 예: TamaPoke expanded v1.37.0
-  ├─ 슬롯 2 → 예: TamaDigi v1.1.0
+  ├─ 슬롯 1 → 예: TamaPoke expanded v1.38.0
+  ├─ 슬롯 2 → 예: TamaDigi v1.1.1
   ├─ 슬롯 3 → 예: TamaNaruto v1.2.0
-  ├─ 슬롯 4 → 예: TamaClock v1.1.0
+  ├─ 슬롯 4 → 예: TamaClock v1.1.1
   └─ 슬롯 5 → 예: TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
 
 앱 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
 앱 중 BOOT 짧게   → 뒤로가기 (전투/미니게임 제외)
 ```
 
-> Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.37.0** (386마리)입니다.
+> Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.38.0** (386마리)입니다.
 > 기본 팩(#1–251)과 Gen3 업데이트 팩(#252–386)을 **둘 다** SD에 넣어야 합니다.
 > SD 업로드 페이지가 두 팩을 자동으로 합쳐 전송합니다.
 
@@ -161,15 +161,16 @@ TamaNav는 밝기를 4단계로 조절합니다.
 
 ### TamaClock 조작
 
-- **위/아래로 스와이프**: 시계 화면 전환 (디지털 → 포켓몬 → 디지몬 → 마리오 → 젤다)
+- **위/아래로 스와이프**: `DIGITAL ONLY` 안내만 표시 (테마 화면은 잠시 휴면)
 - **길게 터치**: 테마 색상 변경 (노랑 → 하늘 → 초록 → 주황 → 분홍 → 흰색 → 보라)
 - **톡 터치**: 12/24시간 전환
 - **PWR 짧게**: 화면 끄기 / 켜기 (잠들기)
 - **BOOT 2초**: TamaHub로 복귀
 
-테마 화면은 정각마다 약 20초짜리 애니메이션이 재생됩니다. SD 카드의
-`/tamaclock/<face>.tnm` 팩이 있으면 내장 그림 대신 그 애니메이션을 사용합니다.
-자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를 참고하세요.
+포켓몬/디지몬/마리오/젤다 화면은 품질 개편 전까지 꺼 두었습니다. 코드와 SD 팩
+로더(`/tamaclock/<face>.tnm`)는 남아 있으므로, 나중에 SD에서 애니메이션을 읽는
+방식으로 되살릴 수 있습니다. 자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를
+참고하세요.
 
 > 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 앱이 켜진 뒤에 누르세요.
 
@@ -179,8 +180,10 @@ TamaPoke와 TamaDigi는 영어/한국어 두 가지입니다. TamaNaruto의 6개
 그대로입니다.
 
 - **TamaPoke**: 시계 화면의 언어 알약(`EN >` / `KO >`)을 탭합니다.
-- **TamaDigi**: 설정 페이지의 `LANG  EN >` 행을 탭합니다.
-- 바꾼 언어는 NVS(`lang2`)에 저장되어 재부팅해도 유지됩니다. 처음 설치하면 영어입니다.
+- **TamaDigi**: 이름/상태 띠를 탭해 메뉴를 열고 설정으로 들어간 뒤, 설정 오른쪽
+  호를 넘겨 2번째 페이지의 `LANG  EN >` 행을 탭합니다.
+- 바꾼 언어는 NVS(`lang2`)에 저장되어 재부팅해도 유지됩니다. 새로 설치하면
+  **한국어**로 시작하고, 예전에 영어를 골라 둔 기기는 그 선택을 유지합니다.
 - 한국어에서는 UI 문구와 **포켓몬/디지몬 이름**이 한글이 됩니다. 기술 이름과
   도움말 화면은 영어 그대로이고, 세이브·도감·SD 스프라이트는 영향을 받지 않습니다.
 - 영어 화면은 기존 5×7 폰트를 그대로 쓰고, 한국어는 U8g2의 16px 유니폰트를
@@ -193,8 +196,8 @@ TamaPoke와 TamaDigi는 영어/한국어 두 가지입니다. TamaNaruto의 6개
 - **TamaPoke**: 시계 화면 위쪽 줄의 `EASY` / `SPEED` 알약.
 - **TamaDigi**: 설정 오른쪽 호를 넘겨 3번째 페이지로 이동한 뒤 `EASY MODE`, `SPEED` 행.
 - **쉬움 모드**: 배부름·기분·기력·청결이 항상 100으로 유지되고 똥이 생기지 않습니다.
-  전투는 항상 이기고, 야생 포켓몬/디지몬은 항상 잡히며, 탐험·원정은 실패하지 않습니다.
-  포켓몬 원정은 즉시 완료됩니다.
+  전투는 **공격 한 번이면 무조건 승리**하고, 야생 포켓몬/디지몬은 항상 잡히며,
+  탐험·원정은 실패하지 않습니다. 포켓몬 원정은 즉시 완료됩니다.
 - **속도**: 1x / 2x / 3x. 게임 안의 1분 틱과 오프라인 진행이 함께 빨라지므로,
   같은 시간에 더 많이 성장하고 더 많은 포켓몬/디지몬을 만납니다. 시계·낮/밤 표시는
   실제 시각을 그대로 씁니다. TamaPoke 원정 시간도 속도에 비례해 짧아집니다.
@@ -486,10 +489,10 @@ NVS는 건드리지 않으므로 세이브와 설정은 그대로입니다.
 
 ```
 hub/                  TamaHub 스케치 (factory)
-games/TamaPoke/       TamaPoke expanded v1.36.2 + 멀티부팅 패치
-games/TamaDigi/       TamaDigi v1.0.1 + 멀티부팅 패치
+games/TamaPoke/       TamaPoke expanded v1.38.0 + 멀티부팅 패치
+games/TamaDigi/       TamaDigi v1.1.1 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
-apps/TamaClock/       TamaClock v1.1.0 (큰 디지털 시계, 테마 4종, 스와이프, 수면)
+apps/TamaClock/       TamaClock v1.1.1 (큰 디지털 시계, 테마 화면은 SD 팩 개편 전까지 휴면)
 apps/TamaNav/         TamaNav v1.0.0 (BLE 턴바이턴 표시, 폰 연동)
 partitions.csv        동결된 v2 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미

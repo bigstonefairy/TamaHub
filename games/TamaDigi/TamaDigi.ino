@@ -42,7 +42,7 @@
 
 // Version del firmware. Subir este numero en cada release (y manifest.json para
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.1.1"
 
 // TamaHub scans the image for this tag, so the app can live in any ota slot.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:TamaDigi";
@@ -5059,18 +5059,35 @@ static void btlResolve(uint8_t yourMove) {
   uint8_t mb = youFirst ? foeMove : yourMove;
 
   uint16_t hp0You = btlYou.hp, hp0Foe = btlFoe.hp;
-  battleAct(*a, *b, ma, lg);
-  btlNarrate(*a, *b, lg);
-  if (lg.damage && !lg.hurtSelf) btlLungeUntil[a == &btlYou ? 0 : 1] = now + BTL_LUNGE_MS;
-  if (!b->fainted()) {
-    battleAct(*b, *a, mb, lg);
-    btlNarrate(*b, *a, lg);
-    if (lg.damage && !lg.hurtSelf)
-      btlLungeUntil[b == &btlYou ? 0 : 1] = now + BTL_LUNGE_MS + BTL_LUNGE_MS;
+  // Easy mode: a direct attack is an unconditional one-hit KO. Resolve it
+  // before accuracy and speed so nothing can deny the player the win. Link
+  // battles stay peer-decided, which is why they are excluded.
+  const bool ezOneHit = easyMode && !btlLink && yourMove && yourMove < MOVE_COUNT &&
+                        MOVE_TBL[yourMove].cat != MC_STATUS;
+  if (ezOneHit) {
+    lg = TurnLog();
+    lg.move = yourMove;
+    lg.damage = btlFoe.hp;
+    lg.effPct = 100;
+    lg.targetFainted = true;
+    btlFoe.hp = 0;
+    btlNarrate(btlYou, btlFoe, lg);
+    btlLungeUntil[0] = now + BTL_LUNGE_MS;
+    btlHitUntil[1] = now + BTL_HIT_MS;
+  } else {
+    battleAct(*a, *b, ma, lg);
+    btlNarrate(*a, *b, lg);
+    if (lg.damage && !lg.hurtSelf) btlLungeUntil[a == &btlYou ? 0 : 1] = now + BTL_LUNGE_MS;
+    if (!b->fainted()) {
+      battleAct(*b, *a, mb, lg);
+      btlNarrate(*b, *a, lg);
+      if (lg.damage && !lg.hurtSelf)
+        btlLungeUntil[b == &btlYou ? 0 : 1] = now + BTL_LUNGE_MS + BTL_LUNGE_MS;
+    }
+    // whoever actually lost health flinches, whichever side dealt it
+    if (btlYou.hp < hp0You) btlHitUntil[0] = now + BTL_HIT_MS;
+    if (btlFoe.hp < hp0Foe) btlHitUntil[1] = now + BTL_HIT_MS;
   }
-  // whoever actually lost health flinches, whichever side dealt it
-  if (btlYou.hp < hp0You) btlHitUntil[0] = now + BTL_HIT_MS;
-  if (btlFoe.hp < hp0Foe) btlHitUntil[1] = now + BTL_HIT_MS;
   if (btlLink && btlLinkHost) btlShipResult(yourMove, foeMove, hp0You, hp0Foe);
   if (!btlYou.fainted() && !btlFoe.fainted()) {
     battleEndTurn(btlYou, lg);
