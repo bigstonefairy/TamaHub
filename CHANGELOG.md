@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.5.1 — 2026-11-11
+
+The default slot plan is now Clock / TamaPoke / TamaDigi / TamaNav with slot 5
+left empty. Firmware images, NVS and otadata offsets are unchanged.
+
+### Changed
+
+- **Installer default layout**: `ota_0` TamaClock, `ota_1` TamaPoke,
+  `ota_2` TamaDigi, `ota_3` TamaNav, `ota_4` 비움. TamaNaruto is still built
+  and offered in the picker, but is no longer part of the first-install plan.
+- `tools/make_installer.py` now derives `manifest.json` and the per-slot
+  update manifests from that default plan, and removes stale manifests from a
+  previous run. `manifest-ota4.json` is no longer generated while slot 5 is
+  empty.
+- The version line on the install page follows the new slot order.
+
+### Notes
+
+- The layout is stored per browser (`tamahub_layout_v1`). Returning users keep
+  their saved arrangement until they press **기본 배치로 되돌리기**.
+- No firmware version bump; only the installer plan changed.
+
 ## v2.5.0 — 2026-11-11
 
 TamaClock's layout and face set, the TamaPoke main-screen clock, Korean as the

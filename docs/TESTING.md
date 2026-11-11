@@ -23,10 +23,10 @@
 ```
 === TamaHub ===
 hub v1.2
-  1 POKEMON      @0x220000 ready v1.36.2
-  2 DIGIMON      @0x420000 ready v1.0.1
-  3 NARUTO       @0x620000 ready v1.2.0
-  4 CLOCK        @0x820000 ready v1.0.0
+  1 CLOCK        @0x220000 ready v1.1.1
+  2 POKEMON      @0x420000 ready v1.38.0
+  3 DIGIMON      @0x620000 ready v1.1.1
+  4 NAV          @0x820000 ready v1.0.0
   5 EMPTY        @0xa20000 EMPTY
 ```
 
@@ -145,7 +145,8 @@ hub v1.2
 
 ## 9. TamaNav v1.0
 
-- [ ] 설치 페이지 기본 배치에 내비게이션이 포함되고, `ota_4`(`0xA20000`)에 쓰인다.
+- [ ] 설치 페이지 기본 배치가 Clock / Poke / Digi / 내비이고, 내비가 `ota_3`
+      (`0x820000`), 5번 슬롯(`ota_4`, `0xA20000`)이 비어 있다.
 - [ ] 허브 카드에 `TamaNav v1.0.0`이 뜨고 실행하면 `PAIR YOUR PHONE` 대기 화면이 나온다.
 - [ ] 폰의 BLE 스캐너에서 `TamaNav`가 보이고 서비스 `4e415600-…`가 노출된다.
 - [ ] 연결하면 기기가 `HELLO`/`STATUS`를 보내고, 폰에서 30초마다 `STATUS`를 받는다.

@@ -27,26 +27,53 @@ sys.path.insert(0, HERE)
 
 import check_layout  # noqa: E402
 
-SLOTS = {
-    "factory": ("tamahub.bin", "TamaHub"),
-    "ota_0": ("tamapoke.bin", "TamaPoke"),
-    "ota_1": ("tamadigi.bin", "TamaDigi"),
-    "ota_2": ("tamanaruto.bin", "TamaNaruto"),
-    "ota_3": ("tamaclock.bin", "TamaClock"),
-    "ota_4": ("tamanav.bin", "TamaNav"),
+# Every app image is relocatable: the slot is chosen by the web installer, not
+# fixed by the build.  The file name is stable because the slot picker in
+# web/index.html fetches each bin by name.
+APPS = {
+    "clock": {
+        "folder": os.path.join("apps", "TamaClock"),
+        "build": os.path.join("TamaClock", "TamaClock.ino.bin"),
+        "bin": "tamaclock.bin",
+        "name": "TamaClock",
+        "version_macro": "TAMAHUB_APP_VERSION",
+    },
+    "poke": {
+        "folder": os.path.join("games", "TamaPoke"),
+        "build": os.path.join("TamaPoke", "TamaPoke.ino.bin"),
+        "bin": "tamapoke.bin",
+        "name": "TamaPoke",
+        "version_macro": "TAMAHUB_APP_VERSION",
+    },
+    "digi": {
+        "folder": os.path.join("games", "TamaDigi"),
+        "build": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
+        "bin": "tamadigi.bin",
+        "name": "TamaDigi",
+        "version_macro": "FW_VERSION",
+    },
+    "naruto": {
+        "folder": os.path.join("games", "TamaNaruto"),
+        "build": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
+        "bin": "tamanaruto.bin",
+        "name": "TamaNaruto",
+        "version_macro": "TAMAHUB_APP_VERSION",
+    },
+    "nav": {
+        "folder": os.path.join("apps", "TamaNav"),
+        "build": os.path.join("TamaNav", "TamaNav.ino.bin"),
+        "bin": "tamanav.bin",
+        "name": "TamaNav",
+        "version_macro": "TAMAHUB_APP_VERSION",
+    },
 }
 
-# Slots that get a default assignment and a static manifest.
-STATIC_SLOTS = ("factory", "ota_0", "ota_1", "ota_2", "ota_3", "ota_4")
+APP_SLOTS = ("ota_0", "ota_1", "ota_2", "ota_3", "ota_4")
 
-BUILD_BINS = {
-    "factory": os.path.join("hub", "hub.ino.bin"),
-    "ota_0": os.path.join("TamaPoke", "TamaPoke.ino.bin"),
-    "ota_1": os.path.join("TamaDigi", "TamaDigi.ino.bin"),
-    "ota_2": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
-    "ota_3": os.path.join("TamaClock", "TamaClock.ino.bin"),
-    "ota_4": os.path.join("TamaNav", "TamaNav.ino.bin"),
-}
+# First-install plan and the static per-slot update manifests.  Keep in sync
+# with DEFAULT_LAYOUT in web/index.html; None leaves the slot empty.  The web
+# picker can still assign any app to any slot.
+DEFAULT_LAYOUT = ("clock", "poke", "digi", "nav", None)
 
 # Sprite packs served next to the installer for the Web Serial SD uploader.
 # They are the upstream bundles, copied into the repository under web/sd/.
@@ -81,18 +108,7 @@ def app_version(path: str) -> str:
 # The app description carries a build hash on this toolchain, which is not a
 # useful version for the installer.  Read the human version from the sketch
 # instead.
-VERSION_SOURCES = {
-    "factory": ("hub", "HUB_VERSION"),
-    "ota_0": (os.path.join("games", "TamaPoke"), "TAMAHUB_APP_VERSION"),
-    "ota_1": (os.path.join("games", "TamaDigi"), "FW_VERSION"),
-    "ota_2": (os.path.join("games", "TamaNaruto"), "TAMAHUB_APP_VERSION"),
-    "ota_3": (os.path.join("apps", "TamaClock"), "TAMAHUB_APP_VERSION"),
-    "ota_4": (os.path.join("apps", "TamaNav"), "TAMAHUB_APP_VERSION"),
-}
-
-
-def source_version(slot: str) -> str:
-    folder, macro = VERSION_SOURCES[slot]
+def source_version(folder: str, macro: str) -> str:
     ino = os.path.join(ROOT, folder, os.path.basename(folder) + ".ino")
     try:
         with open(ino, "r", encoding="utf-8", errors="ignore") as f:
@@ -132,20 +148,38 @@ def main() -> int:
 
     os.makedirs(args.out, exist_ok=True)
 
+    # Drop manifests from a previous run so a slot that became empty (or was
+    # renamed) cannot leave a stale file behind.
+    for name in os.listdir(args.out):
+        if name.startswith("manifest") and name.endswith(".json"):
+            os.remove(os.path.join(args.out, name))
+
     copied: dict[str, str] = {}
     versions: dict[str, str] = {}
     sizes: dict[str, int] = {}
 
-    for slot, rel in BUILD_BINS.items():
-        src = os.path.join(args.build_dir, rel)
+    hub_src = os.path.join(args.build_dir, "hub", "hub.ino.bin")
+    if not os.path.isfile(hub_src):
+        errors.append(f"missing built app: {hub_src}")
+    else:
+        shutil.copy2(hub_src, os.path.join(args.out, "tamahub.bin"))
+        copied["factory"] = "tamahub.bin"
+        versions["factory"] = source_version("hub", "HUB_VERSION") or "1.0"
+        sizes["factory"] = os.path.getsize(hub_src)
+
+    for key, info in APPS.items():
+        src = os.path.join(args.build_dir, info["build"])
         if not os.path.isfile(src):
             errors.append(f"missing built app: {src}")
             continue
-        dst_name = SLOTS[slot][0]
-        shutil.copy2(src, os.path.join(args.out, dst_name))
-        copied[slot] = dst_name
-        versions[slot] = source_version(slot) or app_version(src) or "1.0"
-        sizes[slot] = os.path.getsize(src)
+        shutil.copy2(src, os.path.join(args.out, info["bin"]))
+        copied[key] = info["bin"]
+        versions[key] = (
+            source_version(info["folder"], info["version_macro"])
+            or app_version(src)
+            or "1.0"
+        )
+        sizes[key] = os.path.getsize(src)
 
     boot_src = os.path.join(args.build_dir, "hub", "hub.ino.bootloader.bin")
     part_src = os.path.join(args.build_dir, "hub", "hub.ino.partitions.bin")
@@ -169,22 +203,37 @@ def main() -> int:
         return 1
 
     # Sizes against the frozen slots.
-    for slot in STATIC_SLOTS:
-        if sizes[slot] > rows[slot]["size"]:
+    if sizes["factory"] > rows["factory"]["size"]:
+        print(
+            f"factory: {sizes['factory']:,} bytes does not fit "
+            f"{rows['factory']['size']:,}",
+            file=sys.stderr,
+        )
+        return 1
+    app_slot_size = rows[APP_SLOTS[0]]["size"]
+    for key in APPS:
+        if sizes[key] > app_slot_size:
             print(
-                f"{slot}: {sizes[slot]:,} bytes does not fit "
-                f"{rows[slot]['size']:,}",
+                f"{APPS[key]['name']}: {sizes[key]:,} bytes does not fit "
+                f"{app_slot_size:,}",
                 file=sys.stderr,
             )
             return 1
 
+    plan = [
+        (slot, key)
+        for slot, key in zip(APP_SLOTS, DEFAULT_LAYOUT)
+        if key is not None
+    ]
+
     full_parts = [
         {"path": copied["bootloader"], "offset": check_layout.BOOTLOADER_OFFSET},
         {"path": copied["partitions"], "offset": check_layout.PARTITION_TABLE_OFFSET},
+        {"path": copied["factory"], "offset": rows["factory"]["offset"]},
     ]
-    for slot in STATIC_SLOTS:
+    for slot, key in plan:
         full_parts.append(
-            {"path": copied[slot], "offset": rows[slot]["offset"]}
+            {"path": copied[key], "offset": rows[slot]["offset"]}
         )
 
     hub_version = versions.get("factory") or "1.0"
@@ -193,15 +242,27 @@ def main() -> int:
         manifest("TamaHub (first install)", hub_version, full_parts, erase=True),
     )
 
-    # Per-slot update manifests. No erase, no partition table, no bootloader:
-    # NVS and the other game are untouched.
-    for slot in STATIC_SLOTS:
+    # Hub only: leaves the apps, NVS and otadata untouched.
+    write_json(
+        os.path.join(args.out, "manifest-factory.json"),
+        manifest(
+            "TamaHub update",
+            hub_version,
+            [{"path": copied["factory"], "offset": rows["factory"]["offset"]}],
+            erase=False,
+        ),
+    )
+
+    # Per-slot update manifests for the default plan. No erase, no partition
+    # table, no bootloader: NVS and the other slots are untouched. Empty
+    # default slots get no manifest.
+    for slot, key in plan:
         write_json(
             os.path.join(args.out, f"manifest-{slot.replace('_', '')}.json"),
             manifest(
-                f"{SLOTS[slot][1]} update",
-                versions.get(slot) or "1.0",
-                [{"path": copied[slot], "offset": rows[slot]["offset"]}],
+                f"{APPS[key]['name']} update",
+                versions.get(key) or "1.0",
+                [{"path": copied[key], "offset": rows[slot]["offset"]}],
                 erase=False,
             ),
         )
@@ -225,10 +286,17 @@ def main() -> int:
             sd_bytes += os.path.getsize(path)
 
     print(f"installer written to {args.out}")
-    for slot in STATIC_SLOTS:
+    print(
+        f"  {'TamaHub':10} v{versions.get('factory', '?'):<8} "
+        f"{sizes['factory']:>9,} bytes  @0x{rows['factory']['offset']:06X}"
+    )
+    for slot, key in zip(APP_SLOTS, DEFAULT_LAYOUT):
+        if key is None:
+            print(f"  {'(empty)':10} {'':9} {'':>9}        @0x{rows[slot]['offset']:06X}")
+            continue
         print(
-            f"  {SLOTS[slot][1]:10} v{versions.get(slot, '?'):<8} "
-            f"{sizes[slot]:>9,} bytes  @0x{rows[slot]['offset']:06X}"
+            f"  {APPS[key]['name']:10} v{versions.get(key, '?'):<8} "
+            f"{sizes[key]:>9,} bytes  @0x{rows[slot]['offset']:06X}"
         )
     print("  bootloader @0x0, partition table @0x8000, boot_app0.bin omitted")
     print(f"  sprite packs  {len(SD_ASSETS)} files, {sd_bytes / (1024 * 1024):.1f} MB")

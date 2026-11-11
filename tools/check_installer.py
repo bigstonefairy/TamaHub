@@ -24,18 +24,19 @@ NVS_START = 0x9000
 NVS_END = 0x19000
 BOOT_APP0 = 0xE000
 
-# offset every app image must use, per slot, read from the frozen table
+# offset every app image must use, per slot, read from the frozen table.
 _LAYOUT = {
     r["name"]: r
     for r in check_layout.parse_table(os.path.join(ROOT, "partitions.csv"))
 }
+# These follow the default layout (web/index.html DEFAULT_LAYOUT and
+# tools/make_installer.py DEFAULT_LAYOUT); empty default slots have no manifest.
 APP_OFFSETS = {
     "tamahub.bin": ("factory", _LAYOUT["factory"]["offset"]),
-    "tamapoke.bin": ("ota_0", _LAYOUT["ota_0"]["offset"]),
-    "tamadigi.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
-    "tamanaruto.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
-    "tamaclock.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
-    "tamanav.bin": ("ota_4", _LAYOUT["ota_4"]["offset"]),
+    "tamaclock.bin": ("ota_0", _LAYOUT["ota_0"]["offset"]),
+    "tamapoke.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
+    "tamadigi.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
+    "tamanav.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
 }
 
 # The slot picker and the one-click batch install are the whole user flow; fail
@@ -54,7 +55,6 @@ REQUIRED_FILES = (
     "manifest-ota1.json",
     "manifest-ota2.json",
     "manifest-ota3.json",
-    "manifest-ota4.json",
     "index.html",
     "bootloader.bin",
     "partitions.bin",

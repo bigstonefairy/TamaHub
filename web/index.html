@@ -361,7 +361,7 @@
       <tr><td><code>ota_1</code></td><td>앱 슬롯 2</td><td>0x420000</td><td>2 MB</td></tr>
       <tr><td><code>ota_2</code></td><td>앱 슬롯 3</td><td>0x620000</td><td>2 MB</td></tr>
       <tr><td><code>ota_3</code></td><td>앱 슬롯 4</td><td>0x820000</td><td>2 MB</td></tr>
-      <tr><td><code>ota_4</code></td><td>앱 슬롯 5 (내비)</td><td>0xA20000</td><td>2 MB</td></tr>
+      <tr><td><code>ota_4</code></td><td>앱 슬롯 5</td><td>0xA20000</td><td>2 MB</td></tr>
     </table>
     <p style="margin-top:12px">
       <code>boot_app0.bin</code>은 <strong>0xE000</strong>에 쓰지 않습니다. 이 주소는 64 KB NVS 내부입니다.
@@ -950,7 +950,7 @@
     { id: 'clock',  name: 'Clock',    letter: 'C', color: '#ffd23f', bin: 'tamaclock.bin' },
     { id: 'nav',    name: '내비게이션', letter: 'M', color: '#a81fff', bin: 'tamanav.bin' },
   ];
-  const DEFAULT_LAYOUT = ['poke', 'digi', 'naruto', 'clock', 'nav'];
+  const DEFAULT_LAYOUT = ['clock', 'poke', 'digi', 'nav', ''];
   const LAYOUT_KEY = 'tamahub_layout_v1';
   const manifestUrls = new Map();
   const binSizes = new Map();
@@ -1273,11 +1273,10 @@
     const el = $('versions');
     const items = [
       ['Hub', 'manifest-factory.json'],
-      ['Pokémon', 'manifest-ota0.json'],
-      ['Digimon', 'manifest-ota1.json'],
-      ['Naruto', 'manifest-ota2.json'],
-      ['Clock', 'manifest-ota3.json'],
-      ['내비', 'manifest-ota4.json'],
+      ['Clock', 'manifest-ota0.json'],
+      ['Pokémon', 'manifest-ota1.json'],
+      ['Digimon', 'manifest-ota2.json'],
+      ['내비', 'manifest-ota3.json'],
     ];
     try {
       const rows = await Promise.all(items.map(async ([label, file]) => {

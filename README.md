@@ -31,11 +31,11 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
                      (마지막 앱 자동 재개)
 
 TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
-  ├─ 슬롯 1 → 예: TamaPoke expanded v1.38.0
-  ├─ 슬롯 2 → 예: TamaDigi v1.1.1
-  ├─ 슬롯 3 → 예: TamaNaruto v1.2.0
-  ├─ 슬롯 4 → 예: TamaClock v1.1.1
-  └─ 슬롯 5 → 예: TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
+  ├─ 슬롯 1 → TamaClock v1.1.1
+  ├─ 슬롯 2 → TamaPoke expanded v1.38.0
+  ├─ 슬롯 3 → TamaDigi v1.1.1
+  ├─ 슬롯 4 → TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
+  └─ 슬롯 5 → 비움 (TamaNaruto 등 원하는 앱)
 
 앱 중 BOOT 2초 길게 → 저장 → otadata 삭제 → 재부팅 → TamaHub
 앱 중 BOOT 짧게   → 뒤로가기 (전투/미니게임 제외)
@@ -58,7 +58,7 @@ GitHub Pages에 배포되는 `web/dist/index.html` 을 **Chrome 또는 Edge 데�
 
 1. 기기를 USB로 연결합니다.
 2. **슬롯 배치**에서 각 앱을 원하는 슬롯(`ota_0`–`ota_4`)에 배치합니다.
-   기본값은 Poke / Digi / Naruto / Clock / 내비입니다. 고른 배치는 이 브라우저에 저장됩니다.
+   기본값은 Clock / Poke / Digi / 내비 / 비움입니다. 고른 배치는 이 브라우저에 저장됩니다.
 3. **설치 계획**에서 부트로더 → 파티션 → 허브 → 선택한 앱의 순서·주소·용량을 확인합니다.
 4. **일괄 설치 시작**을 누릅니다. 시리얼 포트를 **한 번만** 고르면 부트로더·v2 파티션
    테이블·허브·선택한 앱이 **자동으로 순서대로** 기록됩니다. Erase는 하지 않으므로
@@ -104,13 +104,13 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
   0x0      build/hub/hub.ino.bootloader.bin \
   0x8000   build/hub/hub.ino.partitions.bin \
   0x20000  build/hub/hub.ino.bin \
-  0x220000 build/TamaPoke/TamaPoke.ino.bin \
-  0x420000 build/TamaDigi/TamaDigi.ino.bin \
-  0x620000 build/TamaNaruto/TamaNaruto.ino.bin \
-  0x820000 build/TamaClock/TamaClock.ino.bin
+  0x220000 build/TamaClock/TamaClock.ino.bin \
+  0x420000 build/TamaPoke/TamaPoke.ino.bin \
+  0x620000 build/TamaDigi/TamaDigi.ino.bin \
+  0x820000 build/TamaNav/TamaNav.ino.bin
 ```
 
-위 주소는 **기본 배치**(Poke / Digi / Naruto / Clock) 기준입니다. 설치 페이지에서
+위 주소는 **기본 배치**(Clock / Poke / Digi / 내비) 기준입니다. 설치 페이지에서
 순서를 바꿨다면 해당 앱을 선택한 슬롯 주소에 쓰면 됩니다. 허브는 슬롯 오프셋을
 하드코딩하지 않고 이미지 안의 `TAMAHUB_APP:` 이름표를 읽어 카드를 표시합니다.
 
@@ -126,11 +126,11 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 
 ```bash
 esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
-  0x220000 build/TamaPoke/TamaPoke.ino.bin
+  0x420000 build/TamaPoke/TamaPoke.ino.bin
 
-# TamaClock을 슬롯 5에 넣고 싶다면
+# TamaNaruto를 슬롯 5에 넣고 싶다면
 esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
-  0xA20000 build/TamaClock/TamaClock.ino.bin
+  0xA20000 build/TamaNaruto/TamaNaruto.ino.bin
 ```
 
 > **Arduino IDE의 Upload 버튼은 쓰지 마세요.** ESP32 Arduino 코어는 업로드할 때
@@ -431,9 +431,9 @@ ota_4,    app,  ota_4,   0xA20000, 0x200000,
 
 ### 기본 배치
 
-설치 페이지의 기본 배치는 `ota_0` TamaPoke, `ota_1` TamaDigi, `ota_2` TamaNaruto,
-`ota_3` TamaClock, `ota_4` TamaNav입니다. 내비가 필요 없으면 슬롯 5를 **비움**으로
-두고 설치하면 됩니다.
+설치 페이지의 기본 배치는 `ota_0` TamaClock, `ota_1` TamaPoke, `ota_2` TamaDigi,
+`ota_3` TamaNav, `ota_4` 비움입니다. TamaNaruto를 쓰려면 원하는 슬롯을 Naruto로
+바꾸면 됩니다.
 
 ### 내비게이션 (TamaNav)
 
