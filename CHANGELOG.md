@@ -18,6 +18,11 @@ screen's `SAVED` is now centred.
   folded into the `-H/+H/-M/+M` button labels so the row fits.
 - TamaDigi: settings gained a third page with the easy switch, the speed
   stepper, and one line explaining each.
+- **One-click batch install** on the web installer: pick only the slot layout,
+  then press **일괄 설치 시작** once. Bootloader, v2 partition table, TamaHub and
+  every selected app are written in order after a single port choice, with a
+  live **설치 계획** list showing the order, offset and size of each part. The
+  chosen layout is remembered in the browser.
 
 ### Changed
 

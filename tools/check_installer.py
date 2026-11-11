@@ -38,6 +38,15 @@ APP_OFFSETS = {
     "tamanav.bin": ("ota_4", _LAYOUT["ota_4"]["offset"]),
 }
 
+# The slot picker and the one-click batch install are the whole user flow; fail
+# the build if a page edit drops them.
+INDEX_MARKERS = (
+    'id="slot-picker"',
+    'id="plan-list"',
+    'id="btn-migrate"',
+    'id="btn-apps"',
+)
+
 REQUIRED_FILES = (
     "manifest.json",
     "manifest-factory.json",
@@ -82,6 +91,14 @@ def main() -> int:
     for name in REQUIRED_FILES:
         if not os.path.isfile(os.path.join(args.dist, name)):
             errors.append(f"missing {name}")
+
+    index_path = os.path.join(args.dist, "index.html")
+    if os.path.isfile(index_path):
+        with open(index_path, "r", encoding="utf-8", errors="ignore") as f:
+            index_html = f.read()
+        for marker in INDEX_MARKERS:
+            if marker not in index_html:
+                errors.append(f"index.html is missing {marker}")
 
     for rel in SD_ASSETS:
         path = os.path.join(args.dist, rel)
