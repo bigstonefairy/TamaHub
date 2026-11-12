@@ -441,14 +441,16 @@ static void drawCreatureFace() {
       snprintf(hm, sizeof(hm), "%d:%02d", hour12(t.tm_hour), t.tm_min);
     }
   }
-  textCenter(hm, 58, 9, accent());
+  textCenter(hm, 132, 9, accent());
 
   char date[28] = "RTC NOT SET";
   if (clockOk) {
     snprintf(date, sizeof(date), "%04d-%02d-%02d  %s", t.tm_year + 1900,
              t.tm_mon + 1, t.tm_mday, FACE_NAMES[face]);
   }
-  textCenter(date, 128, 2, C_DIM);
+  // Date moved above the dial, so the big time sits closer to the middle of
+  // the ring instead of hugging the top edge.
+  textCenter(date, 88, 2, C_DIM);
 
   const int16_t ground = 398;
   gfx->fillEllipse(233, ground + 6, 74, 9, 0x18C3);

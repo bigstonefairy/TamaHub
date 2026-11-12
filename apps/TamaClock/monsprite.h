@@ -172,9 +172,9 @@ struct MonsPack {
     // transparent padding does not shrink the creature.
     const PmdAct &ref = acts[PMD_IDLE].frames ? acts[PMD_IDLE] : a;
     const uint8_t span = (ref.base > ref.top) ? (uint8_t)(ref.base - ref.top) : ref.h;
-    uint8_t s = span ? (uint8_t)((235 + span / 2) / span) : 3;
+    uint8_t s = span ? (uint8_t)((185 + span / 2) / span) : 3;
     if (s < 2) s = 2;
-    while (s > 1 && (a.w * s > 400 || span * s > 245)) s--;
+    while (s > 1 && (a.w * s > 400 || span * s > 190)) s--;
     if (s > maxScale) s = maxScale;
 
     const uint8_t fi = frameAt(a, t);

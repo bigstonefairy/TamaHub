@@ -67,9 +67,9 @@ So if the game shows a sprite, the clock shows the same sprite. Shiny files
   built-in `scenes::poke/digi` drawing plays and the row reads
   `NO SPRITES ON SD`. The clock never shows an empty hole.
 
-Layout: time y 58 (size 9), date + face name y 128 (size 2), battery at y 24,
-shadow line at y 398, `POKEMON #025` / `DIGIMON #003` label y 416, hint
-`HOLD PET: NEXT   SWIPE: FACE` y 438 (all size 1). See
+Layout: date + face name y 88 (size 2) above the dial, time y 132 (size 9),
+battery at y 24, shadow line at y 398, `POKEMON #025` / `DIGIMON #003` label
+y 416, hint `HOLD PET: NEXT   SWIPE: FACE` y 438 (all size 1). See
 `tools/render_clock_preview.py`, which decodes the real TPK2 files and draws
 the same coordinates with the Arduino_GFX 5×7 font. Its output lives in
 `docs/preview/`.
