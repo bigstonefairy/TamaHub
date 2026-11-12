@@ -15,10 +15,12 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
 - **BOOT을 짧게 누르면 뒤로가기**입니다. 전투/미니게임은 빠져나가지 않습니다.
 - 앱의 세이브는 NVS 네임스페이스(`tamapoke`, `tamadigi`, `tamanaruto`)로
   분리되어 있어 서로 덮어쓰지 않습니다.
-- **TamaPoke/TamaDigi UI는 English / 한국어** 두 가지입니다. 기본은 영어이고,
-  게임 안 설정에서 한국어로 바꾸면 UI와 포켓몬·디지몬 이름이 한글로 표시됩니다.
+- **TamaPoke/TamaDigi UI는 English / 한국어** 두 가지입니다. 새로 설치하면 한국어로
+  시작하고, 게임 안 설정에서 영어로 바꾸면 UI와 포켓몬·디지몬 이름이 영어로 표시됩니다.
   (TamaNaruto는 기존 6개 언어 그대로입니다.) 세이브와 SD 스프라이트는 언어와
   무관합니다.
+- 메인 화면을 **3초 길게 누르면** 현재 펫을 놓아주고 새 알을 받을 수 있습니다.
+  새로 설치한 기기는 **소리 끔**으로 시작합니다.
 - **버전 확인**: TamaHub 화면 상단에 `TAMA HUB v1.2`, 설치 페이지 상단에
   Hub/Pokémon/Digimon/Naruto/Clock의 빌드 버전이 표시됩니다.
 - 다른 앱을 플레이하는 동안 비활성 앱은 **일시정지**됩니다. 기기를 꺼 둔 시간만 오프라인 진행으로 계산합니다.
@@ -32,8 +34,8 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
 
 TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
   ├─ 슬롯 1 → TamaClock v1.1.1
-  ├─ 슬롯 2 → TamaPoke expanded v1.38.0
-  ├─ 슬롯 3 → TamaDigi v1.1.1
+  ├─ 슬롯 2 → TamaPoke expanded v1.38.1
+  ├─ 슬롯 3 → TamaDigi v1.1.2
   ├─ 슬롯 4 → TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
   └─ 슬롯 5 → 비움 (TamaNaruto 등 원하는 앱)
 
@@ -41,7 +43,7 @@ TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
 앱 중 BOOT 짧게   → 뒤로가기 (전투/미니게임 제외)
 ```
 
-> Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.38.0** (386마리)입니다.
+> Pokémon 슬롯은 **ShadowEnemyx TamaPoke expanded v1.38.1** (386마리)입니다.
 > 기본 팩(#1–251)과 Gen3 업데이트 팩(#252–386)을 **둘 다** SD에 넣어야 합니다.
 > SD 업로드 페이지가 두 팩을 자동으로 합쳐 전송합니다.
 
@@ -158,6 +160,22 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
 경로를 타고, TamaPoke는 키보드/도움말/시계/도감/게임 메뉴/카드만 닫습니다.
 전투와 미니게임은 짧은 눌림으로 중단되지 않습니다. TamaClock은 12/24시간을 전환하고,
 TamaNav는 밝기를 4단계로 조절합니다.
+
+### 펫 놓아주기 (TamaPoke / TamaDigi)
+
+메인 화면 **아무 곳이나 3초 동안** 손을 대고 있으면 `Release ...?` / `... 놓아줄까요?`
+확인 창이 뜹니다. `YES`를 누르면 작별 연출 뒤 **새 알**이 생기고, `NO`를 누르거나
+10초가 지나면 아무 일도 일어나지 않습니다. 예전에는 펫 그림 위를 길게 눌러야 했고
+메뉴 안쪽에 있어서 찾기 어려웠는데, 이제 화면 전체가 반응합니다. 확인 창이 한 번 더
+물어보므로 스크롤하다가 실수로 놓칠 일은 없습니다.
+
+- **TamaPoke**: 알·부화 연출·전투·미니게임·도감/카드/시계/도움말 화면에서는 동작하지
+  않습니다. 놓아준 뒤에는 도감 등록 수에 따라 새 알이 결정되고, 처음 하는 기기만
+  다시 스타터를 고릅니다.
+- **TamaDigi**: 메인 화면에서만 동작합니다. 놓아준 디지몬은 사라지지 않고 파티/박스
+  자리를 제안받은 뒤 새 알이 생깁니다.
+- **기본 소리**: 새로 설치한 기기는 **소리 끔**으로 시작합니다. 설정에서 언제든
+  켤 수 있고, 이미 소리를 켜 둔 기기는 그 설정을 유지합니다.
 
 ### TamaClock 조작
 
@@ -489,8 +507,8 @@ NVS는 건드리지 않으므로 세이브와 설정은 그대로입니다.
 
 ```
 hub/                  TamaHub 스케치 (factory)
-games/TamaPoke/       TamaPoke expanded v1.38.0 + 멀티부팅 패치
-games/TamaDigi/       TamaDigi v1.1.1 + 멀티부팅 패치
+games/TamaPoke/       TamaPoke expanded v1.38.1 + 멀티부팅 패치
+games/TamaDigi/       TamaDigi v1.1.2 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
 apps/TamaClock/       TamaClock v1.1.1 (큰 디지털 시계, 테마 화면은 SD 팩 개편 전까지 휴면)
 apps/TamaNav/         TamaNav v1.0.0 (BLE 턴바이턴 표시, 폰 연동)

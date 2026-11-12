@@ -42,7 +42,7 @@
 
 // Version del firmware. Subir este numero en cada release (y manifest.json para
 // el instalador web). Se muestra en la pantalla de ajustes y por serie al arrancar.
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.1.2"
 
 // TamaHub scans the image for this tag, so the app can live in any ota slot.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:TamaDigi";
@@ -1910,7 +1910,8 @@ void handleTouch() {
       while (rimSteps < want) { onRim(1); rimSteps++; }
       while (rimSteps > want) { onRim(-1); rimSteps--; }
     }
-    // pulsacion larga sin moverse sobre el bicho -> dialogo de soltar
+    // Pulsacion larga quieta en cualquier punto de la pantalla principal ->
+    // dialogo de soltar (el SI/NO sigue preguntando antes de hacer nada).
     //
     // Gated on the MAIN screen, not on a hand-maintained list of screens to
     // exclude. That list had gallery/card/keyboard/clock on it and nothing
@@ -1921,8 +1922,13 @@ void handleTouch() {
     // dialog's YES box sits on top of party slot 4. Hold a slot, tap where you
     // think a creature is, lose the creature you are actually raising.
     // One question with one answer, so a new screen cannot be forgotten.
+    //
+    // The touch-down also no longer has to start inside inPetZone: the whole
+    // panel works, which is what makes the gesture discoverable. Taps, swipes
+    // and rim scrolls are resolved on release, so a short touch elsewhere is
+    // unaffected; only a 3 s motionless hold reaches this point.
     if (!holdFired && !swallowGesture && uiCurrentScreen() == SCR_MAIN && millis() - tStart > 3000 &&
-        abs(tXl - tX0) < 30 && abs(tYl - tY0) < 30 && inPetZone(tX0, tY0) &&
+        abs(tXl - tX0) < 30 && abs(tYl - tY0) < 30 &&
         !pet.isEgg() && !confirmUntil && !pet.ceremony) {
       confirmUntil = millis() + 10000;
       holdFired = true;

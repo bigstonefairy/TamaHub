@@ -327,10 +327,13 @@ void audioBegin() {
 
   Preferences p;
   p.begin("tamapoke", true);
+  // Silent by default, for the same reason as TamaDigi: a fresh board should
+  // not blast a jingle the first time it boots. Only an absent key falls back
+  // to OFF; an existing save (sndm or the older snd flag) is respected.
   if (p.isKey("sndm")) {
-    gMode = p.getUChar("sndm", SOUND_FULL);
+    gMode = p.getUChar("sndm", SOUND_OFF);
   } else {
-    gMode = p.getBool("snd", true) ? SOUND_FULL : SOUND_OFF;
+    gMode = p.getBool("snd", false) ? SOUND_FULL : SOUND_OFF;
   }
   p.end();
   if (gMode > SOUND_FULL) gMode = SOUND_FULL;

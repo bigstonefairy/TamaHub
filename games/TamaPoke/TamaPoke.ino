@@ -40,7 +40,7 @@
 #endif
 
 // Version shown by the TamaHub installer page.
-#define TAMAHUB_APP_VERSION "1.38.0"
+#define TAMAHUB_APP_VERSION "1.38.1"
 
 #if defined(TAMAPOKE_LOCAL_TEST) && defined(TAMAPOKE_GEN3_RELEASE)
 #error "TAMAPOKE_LOCAL_TEST and TAMAPOKE_GEN3_RELEASE are mutually exclusive"
@@ -462,6 +462,18 @@ const char *screenName() {
   if (cardOpen) return "card";
   if (gameMenuOpen) return "game-menu";
   return screenOff ? "screen-off" : "main";
+}
+
+// Pulsacion larga para soltar al bicho: vale en CUALQUIER punto de la pantalla
+// principal. Antes habia que empezar el gesto sobre el sprite (inPetZone) y una
+// lista de pantallas excluidas escrita a mano, asi que el gesto quedaba casi
+// escondido y ademas se quedaba corto en cuanto se anadia una pantalla nueva.
+// screenName() solo devuelve "main" cuando ningun panel, juego ni aviso manda
+// en la pantalla, asi que preguntar por el no se puede quedar desfasado.
+bool canHoldToRelease() {
+  if (strcmp(screenName(), "main") != 0) return false;
+  if (feedMenuUntil || confirmUntil || choiceKind || bathUntil || wildPromptUntil || petEventUntil) return false;
+  return !pet.isEgg() && !pet.ceremony && !pet.awaitingStarter();
 }
 
 bool staticScreenClean() {
@@ -1190,10 +1202,10 @@ void handleTouch() {
   } else if (pressed) {  // sigue apoyado
     tXl = x;
     tYl = y;
-    // pulsacion larga sin moverse sobre el bicho -> dialogo de soltar
-    if (!holdFired && !swallowGesture && !galleryOpen && !cardOpen && !kbOpen && !clockOpen && !helpOpen && millis() - tStart > 3000 &&
-        abs(tXl - tX0) < 30 && abs(tYl - tY0) < 30 && inPetZone(tX0, tY0) &&
-        !pet.isEgg() && !confirmUntil && !pet.ceremony) {
+    // pulsacion larga quieta en cualquier punto de la pantalla principal ->
+    // dialogo de soltar (el SI/NO sigue preguntando antes de hacer nada)
+    if (!holdFired && !swallowGesture && millis() - tStart > 3000 &&
+        abs(tXl - tX0) < 30 && abs(tYl - tY0) < 30 && canHoldToRelease()) {
       confirmUntil = millis() + 10000;
       holdFired = true;
     }
@@ -3800,7 +3812,7 @@ static const char *const HELP_OK[LANG_COUNT] = { "OK", "OK" };
 static const char *const HELP_TITLES[HELP_PAGE_COUNT] = { "CARE", "SLEEP/ENERGY", "MINIGAMES", "BATTLE 1", "BATTLE 2", "COLLECTION", "EXTRAS", "EXPEDITION" };
 
 static const char *const HELP_LINES[HELP_PAGE_COUNT][HELP_LINE_COUNT] = {
-    { "Low food = slip-up.", "Play raises joy.", "Bath cleans dirt.", "Petting gives joy/bond.", "High weight slows you.", "Candy cheers but fattens." },
+    { "Low food = slip-up.", "Play raises joy.", "Bath cleans dirt.", "Petting gives joy/bond.", "High weight slows you.", "Hold screen: release pet." },
     { "Sleep restores energy.", "Needs decay slower asleep.", "Light toggles sleep.", "Short PWR screen off.", "Power Save light-sleeps.", "No erase keeps saves." },
     { "Ball: tap the ball.", "Catch: tap icons.", "Memo: repeat sequence.", "Clean: tap stains.", "Type: pick advantage.", "Records and training." },
     { "Quick: lower damage.", "Enemy dodges less.", "You take less damage.", "Heavy: more damage.", "More risk/counterplay.", "Not always best." },

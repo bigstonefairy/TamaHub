@@ -1,5 +1,44 @@
 # Changelog
 
+## v2.5.2 — 2026-11-12
+
+Releasing a pet is now a screen-wide gesture instead of a hidden menu item, and
+both games boot silent until the player asks for sound.
+
+### Changed
+
+- **TamaPoke 1.38.1 / TamaDigi 1.1.2**: hold the **main screen anywhere** for
+  3 s to open the existing `Release ...?` confirmation, then `YES` to say
+  goodbye and receive a new egg. The hold used to require starting on the pet
+  sprite (`inPetZone`), which made the feature almost undiscoverable; TamaPoke
+  also kept a hand-written list of screens to exclude, so the gate is now
+  `screenName() == "main"` and cannot fall out of date. TamaDigi keeps its
+  `SCR_MAIN` gate and drops the zone test.
+- The YES/NO dialog is unchanged: it is still the safety net for an accidental
+  hold, and taps, swipes and rim scrolls resolve exactly as before.
+- **Sound defaults to OFF** on a fresh save in both games (`sndm`/`snd` for
+  TamaPoke, `snd` for TamaDigi). The boot jingle no longer plays until sound is
+  enabled in settings. Existing saves that already chose a mode keep it;
+  TamaDigi's `vol` default stays at 4 so turning sound on is audible.
+- TamaPoke help (CARE page) replaces the candy tip with
+  `Hold screen: release pet.`
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.38.1 | 784,944 B | `0x420000` (`ota_1`) |
+| TamaDigi | 1.1.2 | 1,411,168 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.1.1 | 525,056 B | `0x220000` (`ota_0`) |
+| TamaNav | 1.0.0 | 720,907 B | `0x820000` (`ota_3`) |
+
+### Notes
+
+- Physical checks are in `docs/TESTING.md` §11. Without hardware the hold
+  reach, the release ceremony, the new-egg flow and the silent boot are
+  unverified on device.
+
 ## v2.5.1 — 2026-11-11
 
 The default slot plan is now Clock / TamaPoke / TamaDigi / TamaNav with slot 5

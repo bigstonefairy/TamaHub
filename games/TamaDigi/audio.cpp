@@ -317,7 +317,10 @@ void audioBegin() {
 
   Preferences p;
   p.begin("tamadigi", false);   // read-write: may migrate the old default once
-  gOn = p.getBool("snd", true);
+  // Silent on a fresh save: a handheld that starts shouting the moment it boots
+  // is the wrong first impression, and the switch in settings is easy to find.
+  // A player who already turned sound on keeps their "snd" value.
+  gOn = p.getBool("snd", false);
   gVol = p.getUChar("vol", 4);
   if (gVol > 10) gVol = 4;
   // Early builds defaulted to 7/10, which is louder than this small speaker
