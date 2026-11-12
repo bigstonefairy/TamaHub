@@ -285,7 +285,7 @@ def creature_scene(font: bytes, pal: list[int], act: Act, idle: Act, label: str,
     draw_battery(draw, font, y=CREATURE_BATTERY_Y)
 
     text_center(draw, font, time_s, TIME_Y, TIME_SIZE, time_color)
-    text_center(draw, font, f"{date_s}  {label.split()[0]}", DATE_Y, DATE_SIZE, DIM)
+    text_center(draw, font, f"{date_s}", DATE_Y, DATE_SIZE, DIM)
 
     # fillEllipse(233, ground + 6, 74, 9)
     cx, cy, rx, ry = W // 2, GROUND_Y + 6, 74, 9
@@ -293,7 +293,7 @@ def creature_scene(font: bytes, pal: list[int], act: Act, idle: Act, label: str,
 
     draw_sprite(img, pal, act, idle, frame, W // 2, GROUND_Y)
     text_center(draw, font, label, LABEL_Y, 1, DIM)
-    text_center(draw, font, "HOLD PET: NEXT   SWIPE: FACE", HINT_Y, 1, DIM)
+    text_center(draw, font, "HOLD PET: RANDOM   SWIPE: FACE", HINT_Y, 1, DIM)
     return img
 
 
@@ -336,6 +336,8 @@ def main() -> int:
     ap.add_argument("--font", default=str(FONT_DEFAULT))
     ap.add_argument("--pokemon", type=int, default=25)   # Pikachu
     ap.add_argument("--digimon", type=int, default=3)    # Agumon
+    ap.add_argument("--pokemon-name", default="PIKACHU")
+    ap.add_argument("--digimon-name", default="AGUMON")
     ap.add_argument("--frames", type=int, default=6)
     args = ap.parse_args()
 
@@ -356,17 +358,17 @@ def main() -> int:
         return pak[key]
 
     jobs = [
-        ("pokemon", "POKEMON", entry(poke_pak, args.pokemon), args.pokemon),
-        ("digimon", "DIGIMON", entry(digi_pak, args.digimon), args.digimon),
+        ("pokemon", args.pokemon_name, entry(poke_pak, args.pokemon), args.pokemon),
+        ("digimon", args.digimon_name, entry(digi_pak, args.digimon), args.digimon),
     ]
 
-    for slug, label, blob, dex in jobs:
+    for slug, name, blob, dex in jobs:
         pal, acts = parse_tpk2(blob)
         act = idle_act(acts)
         idle = acts[0] if acts and acts[0] else act
         n = min(args.frames, act.frames)
         acc = accent_color(pal, act)
-        label_text = f"{label} #{dex:03d}"
+        label_text = f"{name}  #{dex:03d}"
         still = creature_scene(font, pal, act, idle, label_text, 0,
                                time_color=acc)
         still.save(out / f"clock-{slug}.png")
@@ -376,7 +378,7 @@ def main() -> int:
             for i in range(n)
         ]
         save_gif(frames, act.ms[:n], out / f"clock-{slug}.gif")
-        print(f"{label}: {act.w}x{act.h}, {act.frames} idle frames, "
+        print(f"{name}: {act.w}x{act.h}, {act.frames} idle frames, "
               f"scale {sprite_scale(idle, act)}, accent #{acc:04X}")
 
     digital_scene(font).save(out / "clock-digital.png")

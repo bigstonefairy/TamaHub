@@ -1927,9 +1927,14 @@ void handleTouch() {
     // panel works, which is what makes the gesture discoverable. Taps, swipes
     // and rim scrolls are resolved on release, so a short touch elsewhere is
     // unaffected; only a 3 s motionless hold reaches this point.
-    if (!holdFired && !swallowGesture && uiCurrentScreen() == SCR_MAIN && millis() - tStart > 3000 &&
-        abs(tXl - tX0) < 30 && abs(tYl - tY0) < 30 &&
-        !pet.isEgg() && !confirmUntil && !pet.ceremony) {
+    // A 1.2 s motionless hold opens the idle settings.  The old 3 s / 30 px
+    // rule rejected honest holds, and the egg gate made the gesture silently
+    // dead for the whole first hour -- the only other way in was a right swipe,
+    // which is exactly what made "hold does nothing" look like a bug.
+    if (!holdFired && uiCurrentScreen() == SCR_MAIN && millis() - tStart > 1200 &&
+        abs(tXl - tX0) < 60 && abs(tYl - tY0) < 60 &&
+        !confirmUntil && !pet.ceremony) {
+      swallowGesture = true;   // the release must not also read as a tap
       openClock();
       holdFired = true;
     }
@@ -3638,25 +3643,26 @@ void drawIdlePet() {
 
 // Default Arduino_GFX 5x7 font, same size as TamaClock: digit height 7*size.
 static void idleTextCentered(const char *s, int16_t y, uint8_t size, uint16_t color) {
-  gfx->setTextSize(size);
   gfx->setTextColor(color);
-  gfx->setCursor(CX - textW(s, size) / 2, y);
+  setSize(size);
+  gfx->setCursor(CX - (int16_t)textW(s, size) / 2, y + gFontAscent * gTextSize);
   gfx->print(s);
 }
 
 static void idleTextOutlined(const char *s, int16_t y, uint8_t size, uint16_t color) {
-  int16_t x = CX - textW(s, size) / 2;
-  gfx->setTextSize(size);
+  setSize(size);
+  const int16_t x = CX - (int16_t)textW(s, size) / 2;
+  const int16_t by = y + gFontAscent * gTextSize;
   gfx->setTextColor(UI_BG_NIGHT);
   for (int8_t dy = -2; dy <= 2; dy += 2) {
     for (int8_t dx = -2; dx <= 2; dx += 2) {
       if (!dx && !dy) continue;
-      gfx->setCursor(x + dx, y + dy);
+      gfx->setCursor(x + dx, by + dy);
       gfx->print(s);
     }
   }
   gfx->setTextColor(color);
-  gfx->setCursor(x, y);
+  gfx->setCursor(x, by);
   gfx->print(s);
 }
 
@@ -3673,22 +3679,22 @@ void drawIdleClockHud() {
     struct tm t;
     gmtime_r(&tt, &t);
     snprintf(hm, sizeof(hm), "%02d:%02d", t.tm_hour, t.tm_min);
-    const char *who = pet.isEgg() ? "EGG" : dexName(pet.speciesId);
-    snprintf(date, sizeof(date), "%04d-%02d-%02d  %s",
-             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, who);
+    // Name and number already sit under the creature; the top row is the date.
+    snprintf(date, sizeof(date), "%04d-%02d-%02d",
+             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
   }
   idleTextCentered(date, 80, 2, inkColor());
-  idleTextOutlined(hm, 116, 11, idleAccentColor());
+  idleTextOutlined(hm, 108, 10, idleAccentColor());
 
   char evo[24];
   uint32_t rem = pet.isEgg() ? 0 : idleRemainingSec();
   if (pet.isEgg()) snprintf(evo, sizeof(evo), "HATCHING");
   else snprintf(evo, sizeof(evo), "EVO %02lu:%02lu",
                 (unsigned long)(rem / 60), (unsigned long)(rem % 60));
-  idleTextCentered(evo, 202, 1, inkColor());
+  idleTextCentered(evo, 196, 1, inkColor());
 
   uint16_t accent = idleAccentColor();
-  const int barX = 83, barY = 216, barW = 300, barH = 6;
+  const int barX = CX - 125, barY = 208, barW = 250, barH = 5;
   gfx->fillRoundRect(barX, barY, barW, barH, 3, UI_TRACK);
   uint16_t fillW = (uint16_t)((uint32_t)barW * idlePermille() / 1000UL);
   if (fillW > 2) gfx->fillRoundRect(barX, barY, fillW, barH, 3, accent);

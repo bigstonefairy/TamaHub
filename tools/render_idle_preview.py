@@ -54,11 +54,11 @@ UI_BAR_BAD = 0xEA87
 UI_WHITE = 0xFFFF
 UI_BG_NIGHT = 0x0842  # dark outline behind the big clock
 
-TIME_Y = 116
-TIME_SIZE = 11
+TIME_Y = 108
+TIME_SIZE = 10
 DATE_Y = 80
-EVO_Y = 202
-BAR_X, BAR_Y, BAR_W, BAR_H = 83, 216, 300, 6
+EVO_Y = 196
+BAR_X, BAR_Y, BAR_W, BAR_H = 108, 208, 250, 5
 LABEL_Y = 416
 HINT_Y = 438
 
@@ -181,7 +181,7 @@ def draw_hud(img: Image.Image, draw: ImageDraw.ImageDraw, font: bytes,
              name: str, dex: int, accent: int, remain: str, permille: int,
              night: bool = False, toast: str = "") -> None:
     ink = UI_INK_NIGHT if night else UI_INK
-    date = f"2026-11-12  {name}"
+    date = "2026-11-12"
     text_center(draw, font, date, DATE_Y, 2, ink)
     text_outlined(draw, font, "12:34", TIME_Y, TIME_SIZE, accent)
 

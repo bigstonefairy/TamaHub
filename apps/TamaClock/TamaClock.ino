@@ -42,6 +42,7 @@
 #include "multiboot.h"
 #include "clockpack.h"
 #include "monsprite.h"
+#include "monnames.h"
 #include "scenes.h"
 
 #define TAMAHUB_APP_NAME "TamaClock"
@@ -124,13 +125,21 @@ static uint8_t brightness = 200;
 static bool use24h = true;
 static bool asleep = false;
 
-// One creature at a time, read from the game's own SD pack.  dexList is the
-// scan of that pack; 400 covers TamaPoke's 386 with room to spare.
+// One creature at a time, read from the game's own SD pack.  Each pack's file
+// list is scanned at most once per boot: walking a 386-entry folder on the
+// 1-bit SD bus takes about a second, and rescanning it on every face swipe made
+// the switch feel like a freeze.
 static MonsPack mon;
-static uint16_t dexList[400];
+static uint16_t dexCache[2][400];      // 0 = Poke, 1 = Digi
+static uint16_t dexCacheCount[2] = {0, 0};
+static uint16_t *dexList = dexCache[0];
 static uint16_t dexCount = 0;
 static uint16_t dexPos = 0;
 static uint8_t dexRoot = 0;          // 0 none, 1 Poke, 2 Digi
+// 0 idle, 1 placeholder frame owed, 2 read the card now.  Splitting the load in
+// two passes lets the new face (clock, date, name) reach the panel before the
+// blocking SD read.
+static uint8_t monLoadState = 0;
 static uint32_t monAt = 0;           // when this creature appeared
 static uint32_t monAnim = 0;         // animation time origin
 static bool monOk = false;
@@ -420,6 +429,30 @@ static void drawDigitalFace() {
 // Layout: the clock across the top, one animated creature standing on a shadow
 // line under it, and a single hint row inside the ring.  The creature is drawn
 // from the game's own SD pack, so it is the same art the game shows.
+// Species name for the label under the creature.  The roster comes from
+// monnames.h (generated from the games' dex tables); an unknown dex or the
+// unused row 0 returns nullptr and the label falls back to just the number.
+static const char *monName(uint16_t dex) {
+  if (face == FACE_POKE) {
+    if (dex < sizeof(POKE_MON_NAMES) / sizeof(POKE_MON_NAMES[0])) {
+      const char *n = POKE_MON_NAMES[dex];
+      if (n && *n && *n != '?') return n;
+    }
+  } else if (face == FACE_DIGI) {
+    if (dex < sizeof(DIGI_MON_NAMES) / sizeof(DIGI_MON_NAMES[0])) {
+      const char *n = DIGI_MON_NAMES[dex];
+      if (n && *n && *n != '?') return n;
+    }
+  }
+  return nullptr;
+}
+
+static void monLabel(char *out, size_t cap, uint16_t dex) {
+  const char *n = monName(dex);
+  if (n) snprintf(out, cap, "%s  #%03u", n, (unsigned)dex);
+  else snprintf(out, cap, "#%03u", (unsigned)dex);
+}
+
 static void drawCreatureFace() {
   gfx->fillScreen(C_BG);
   drawRing();
@@ -445,8 +478,8 @@ static void drawCreatureFace() {
 
   char date[28] = "RTC NOT SET";
   if (clockOk) {
-    snprintf(date, sizeof(date), "%04d-%02d-%02d  %s", t.tm_year + 1900,
-             t.tm_mon + 1, t.tm_mday, FACE_NAMES[face]);
+    snprintf(date, sizeof(date), "%04d-%02d-%02d", t.tm_year + 1900,
+             t.tm_mon + 1, t.tm_mday);
   }
   // Date moved above the dial, so the big time sits closer to the middle of
   // the ring instead of hugging the top edge.
@@ -458,9 +491,16 @@ static void drawCreatureFace() {
   if (monOk) {
     const uint8_t act = mon.acts[PMD_IDLE].frames ? PMD_IDLE : mon.firstAct();
     mon.draw(gfx, act, 233, ground, millis() - monAnim, 6);
-    char lbl[20];
-    snprintf(lbl, sizeof(lbl), "%s #%03u", FACE_NAMES[face], dexList[dexPos]);
+    char lbl[40];
+    monLabel(lbl, sizeof(lbl), dexList[dexPos]);
     textCenter(lbl, 416, 1, C_DIM);
+  } else if (monLoadState && dexCount) {
+    // The SD read is about to block the loop: show which creature is coming
+    // instead of the "no sprites" warning the frame would otherwise carry.
+    char lbl[40];
+    monLabel(lbl, sizeof(lbl), dexList[dexPos]);
+    textCenter(lbl, 416, 1, C_DIM);
+    textCenter("LOADING", 430, 1, C_DIM);
   } else {
     // No card or no pack: the built-in scene keeps the face alive instead of
     // leaving a hole, and the label says why it is not a real sprite.
@@ -472,7 +512,7 @@ static void drawCreatureFace() {
     textCenter("NO SPRITES ON SD", 416, 1, C_WARN);
   }
 
-  textCenter("HOLD PET: NEXT   SWIPE: FACE", 438, 1, C_DIM);
+  textCenter("HOLD PET: RANDOM   SWIPE: FACE", 438, 1, C_DIM);
   drawToast(160);
   gfx->flush();
   dirty = false;
@@ -516,16 +556,21 @@ static bool loadMon() {
   return false;
 }
 
-// randomPick: the 5-minute timer.  Otherwise the long press walks the list in
-// order, which makes it obvious that the gesture moved to the next one.
+// randomPick: the 5-minute timer and the long press.  Otherwise the serial
+// "NEXT" command walks the list in order, which makes it obvious that the
+// command moved to the next one.
 static void nextMon(bool randomPick) {
   if (!faceAnimated()) return;
+  const uint8_t slot = (face == FACE_DIGI) ? 1 : 0;
+  if (!dexCacheCount[slot])
+    dexCacheCount[slot] = (uint16_t)monsScan(monRoot(), dexCache[slot], 400);
+  dexList = dexCache[slot];
+  dexCount = dexCacheCount[slot];
   if (!dexCount) {
-    dexCount = (uint16_t)monsScan(monRoot(), dexList, 400);
-    if (!dexCount) {
-      dirty = true;
-      return;
-    }
+    monOk = false;
+    monLoadState = 0;
+    dirty = true;
+    return;
   }
   if (randomPick) {
     uint16_t p = (uint16_t)random(dexCount);
@@ -534,29 +579,37 @@ static void nextMon(bool randomPick) {
   } else {
     dexPos = (uint16_t)((dexPos + 1) % dexCount);
   }
-  loadMon();
+  mon.close();
+  monOk = false;
+  monLoadState = 1;   // paint the new face first, read the card next pass
   dirty = true;
 }
 
-// Called on boot and whenever the face changes: rescan only when the pack
-// folder changed, then show a random creature.
+// Called on boot and whenever the face changes: use the cached scan for that
+// pack (scanning only the first time this boot), then show a random creature.
 static void enterMonFace() {
   if (!faceAnimated()) return;
   const uint8_t root = (face == FACE_POKE) ? 1 : 2;
+  const uint8_t slot = (uint8_t)(root - 1);
   if (dexRoot != root) {
     mon.close();
+    monOk = false;
     dexRoot = root;
-    dexCount = 0;
-    dexPos = 0;
   }
-  if (!dexCount) dexCount = (uint16_t)monsScan(monRoot(), dexList, 400);
+  if (!dexCacheCount[slot])
+    dexCacheCount[slot] = (uint16_t)monsScan(monRoot(), dexCache[slot], 400);
+  dexList = dexCache[slot];
+  dexCount = dexCacheCount[slot];
   if (!dexCount) {
     monOk = false;
+    monLoadState = 0;
     Serial.printf("clock sprite: no pNNN.bin in %s\n", monRoot());
     return;
   }
   dexPos = (uint16_t)random(dexCount);
-  loadMon();
+  mon.close();
+  monOk = false;
+  monLoadState = 1;
 }
 
 static bool sdMount() {
@@ -619,6 +672,7 @@ static void setFace(int f) {
   } else {
     mon.close();
     monOk = false;
+    monLoadState = 0;
     dexRoot = 0;
     dexCount = 0;
   }
@@ -678,10 +732,10 @@ static void pollTouch() {
       setFace(face + (dy < 0 ? 1 : -1));
       touchConsumed = true;
     } else if (!touchConsumed && now - touchT0 >= 800) {
-      // Holding the creature skips to the next sprite; anywhere else keeps the
-      // old "next theme colour" gesture.
+      // Holding the creature shows another creature at random; anywhere else
+      // keeps the old "next theme colour" gesture.
       if (faceAnimated() && touchY0 > 200) {
-        nextMon(false);
+        nextMon(true);
       } else {
         setTheme(theme + 1);
       }
@@ -954,6 +1008,19 @@ void loop() {
   if (asleep) {
     delay(30);
     return;
+  }
+
+  // Two-pass sprite load.  Pass 1 only asks for a redraw, which puts the new
+  // face and the creature's name on the panel; pass 2 does the blocking SD
+  // read.  Without the split the swipe sat on the old picture for the whole
+  // directory scan and file read.
+  if (monLoadState == 1) {
+    monLoadState = 2;
+    dirty = true;
+  } else if (monLoadState == 2) {
+    monLoadState = 0;
+    loadMon();
+    dirty = true;
   }
 
   const uint32_t now = millis();
