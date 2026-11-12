@@ -47,6 +47,7 @@ struct MonsPack {
   uint16_t palCount = 0;
   uint16_t pal[256] = {0};
   PmdAct acts[PMD_NACTS];
+  uint16_t accent = 0xFFFF;     // main colour, used to tint the big time
 
   bool ready() const { return blob != nullptr; }
 
@@ -60,6 +61,7 @@ struct MonsPack {
       a.data = nullptr;
     }
     palCount = 0;
+    accent = 0xFFFF;
   }
 
   // Opens <root>/pNNN.bin.  The blob keeps pointers into itself, so it lives
@@ -152,6 +154,7 @@ struct MonsPack {
       a.base = base;
       a.top = top;
     }
+    pickAccent();
     return true;
   }
 
@@ -193,6 +196,63 @@ struct MonsPack {
   }
 
  private:
+  static uint8_t expand5(uint16_t v) { return (uint8_t)((v & 0x1F) * 255 / 31); }
+  static uint8_t expand6(uint16_t v) { return (uint8_t)((v & 0x3F) * 255 / 63); }
+
+  // Picks the colour the big time is drawn in.  Outlines are usually near
+  // black and highlights near white, so pixels are scored by area plus how far
+  // the colour is from grey; a dark winner is lifted until it reads on the
+  // black panel.  Falls back to white when nothing suitable is found.
+  void pickAccent() {
+    uint16_t counts[256] = {0};
+    const uint8_t actId = acts[PMD_IDLE].frames ? PMD_IDLE : firstAct();
+    if (actId >= PMD_NACTS) return;
+    const PmdAct &a = acts[actId];
+    for (uint8_t fr = 0; fr < a.frames; fr++) {
+      const uint8_t *frm = a.data + (uint32_t)fr * a.w * a.h;
+      for (uint32_t i = 0; i < (uint32_t)a.w * a.h; i++) {
+        const uint8_t idx = frm[i];
+        if (idx != 0xFF && idx < palCount) counts[idx]++;
+      }
+    }
+
+    uint32_t best = 0;
+    uint16_t bestPal = 0xFFFF;
+    for (uint16_t i = 0; i < palCount; i++) {
+      if (!counts[i]) continue;
+      const uint8_t r = expand5(pal[i] >> 11);
+      const uint8_t g = expand6(pal[i] >> 5);
+      const uint8_t b = expand5(pal[i]);
+      const uint8_t mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const uint8_t mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      const uint16_t lum = (uint16_t)((r * 30 + g * 59 + b * 11) / 100);
+      if (lum < 35 || lum > 240) continue;  // outline black / glare white
+      uint32_t score = (uint32_t)counts[i] * (uint32_t)(mx - mn + 40);
+      if (lum < 90) score /= 2;  // very dark colours need a nudge to win
+      if (score > best) {
+        best = score;
+        bestPal = pal[i];
+      }
+    }
+    if (bestPal == 0xFFFF) return;
+
+    uint16_t r = expand5(bestPal >> 11);
+    uint16_t g = expand6(bestPal >> 5);
+    uint16_t b = expand5(bestPal);
+    uint16_t lum = (uint16_t)((r * 30 + g * 59 + b * 11) / 100);
+    if (lum && lum < 145) {
+      uint16_t f = (uint16_t)(14500 / lum);  // percent, ~1x .. 2.5x
+      if (f > 250) f = 250;
+      r = (r * f) / 100;
+      g = (g * f) / 100;
+      b = (b * f) / 100;
+      if (r > 255) r = 255;
+      if (g > 255) g = 255;
+      if (b > 255) b = 255;
+    }
+    accent = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+  }
+
   static uint32_t actMs(const PmdAct &a) {
     uint32_t total = 0;
     for (uint8_t i = 0; i < a.frames; i++) total += a.ms[i];

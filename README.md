@@ -188,10 +188,11 @@ TamaNav는 밝기를 4단계로 조절합니다.
 
 포켓몬/디지몬 화면은 게임이 SD에 넣어 둔 스프라이트(`/tamapoke/mons`,
 `/tamadigi/mons`)를 그대로 읽어 애니메이션합니다. 시계 위쪽은 크게, 아래쪽은
-몬스터가 서 있고, **5분마다 다른 몬스터로 바뀝니다**. 스프라이트가 없으면 내장
-장면과 `NO SPRITES ON SD` 안내로 대체됩니다. 마리오/젤다 페이스는 게임앤워치
-개편 때 다시 붙일 예정입니다. 자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를
-참고하세요.
+몬스터가 서 있고, **5분마다 다른 몬스터로 바뀝니다**. 시계 글씨 색은 그
+몬스터의 대표 색을 따라가므로 몬스터가 바뀔 때 색도 함께 바뀝니다. 스프라이트가
+없으면 내장 장면과 `NO SPRITES ON SD` 안내로 대체됩니다. 마리오/젤다 페이스는
+게임앤워치 개편 때 다시 붙일 예정입니다. 자세한 내용은
+[`docs/CLOCK.md`](docs/CLOCK.md)를 참고하세요.
 
 플래시 전 화면 확인: [Pokémon 예시](docs/preview/clock-pokemon.gif) ·
 [Digimon 예시](docs/preview/clock-digimon.gif) · [디지털 예시](docs/preview/clock-digital.png)

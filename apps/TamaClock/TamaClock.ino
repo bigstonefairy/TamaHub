@@ -441,7 +441,7 @@ static void drawCreatureFace() {
       snprintf(hm, sizeof(hm), "%d:%02d", hour12(t.tm_hour), t.tm_min);
     }
   }
-  textCenter(hm, 132, 9, accent());
+  textCenter(hm, 116, 11, monOk ? mon.accent : accent());
 
   char date[28] = "RTC NOT SET";
   if (clockOk) {
@@ -450,7 +450,7 @@ static void drawCreatureFace() {
   }
   // Date moved above the dial, so the big time sits closer to the middle of
   // the ring instead of hugging the top edge.
-  textCenter(date, 88, 2, C_DIM);
+  textCenter(date, 80, 2, C_DIM);
 
   const int16_t ground = 398;
   gfx->fillEllipse(233, ground + 6, 74, 9, 0x18C3);

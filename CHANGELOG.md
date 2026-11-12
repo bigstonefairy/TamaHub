@@ -23,6 +23,12 @@ button writes what, and no longer shows a stale version after an upload.
   clamped to 400 × 245 px. Missing card, empty folder or an unreadable file
   falls back to the built-in `scenes::poke/digi` drawing plus
   `NO SPRITES ON SD`.
+- The time is bigger (size 11 at y 116, date above it at y 80) and is drawn in
+  the creature's **main colour**: `MonsPack::pickAccent` scores the palette of
+  the `IDLE` action by pixel area and saturation, skips near-black outlines and
+  near-white glare, and brightens a dark winner until it reads on the panel.
+  The colour therefore changes with the creature, and the preview script uses
+  the same pick so the PNG/GIF match the firmware.
 - MARIO/ZELDA stay parked for the Game & Watch pass. Their face ids and the
   old `TNM1` loader in `clockpack.h` are kept, and a saved face 3/4 boots into
   `DIGITAL` instead of a blank screen.
@@ -52,7 +58,7 @@ button writes what, and no longer shows a stale version after an upload.
 | TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
 | TamaPoke | 1.38.1 | 784,944 B | `0x420000` (`ota_1`) |
 | TamaDigi | 1.1.2 | 1,411,168 B | `0x620000` (`ota_2`) |
-| TamaClock | 1.2.0 | 529,024 B | `0x220000` (`ota_0`) |
+| TamaClock | 1.2.0 | 530,960 B | `0x220000` (`ota_0`) |
 | TamaNav | 1.0.0 | 721,056 B | `0x820000` (`ota_3`) |
 
 ### Notes

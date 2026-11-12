@@ -38,9 +38,9 @@ ACCENT = 0xFFE0  # THEMES[0] yellow
 
 # Layout copied from TamaClock.ino (drawCreatureFace / drawDigitalFace).
 GROUND_Y = 398
-TIME_Y = 58
-TIME_SIZE = 9
-DATE_Y = 128
+TIME_Y = 116
+TIME_SIZE = 11
+DATE_Y = 80
 DATE_SIZE = 2
 LABEL_Y = 416
 HINT_Y = 438
@@ -199,11 +199,54 @@ def idle_act(acts: list[Act | None]) -> Act:
     return act
 
 
+def _expand5(v: int) -> int:
+    return (v & 0x1F) * 255 // 31
+
+
+def _expand6(v: int) -> int:
+    return (v & 0x3F) * 255 // 63
+
+
+def accent_color(pal: list[int], act: Act) -> int:
+    """Same pick as MonsPack::pickAccent in apps/TamaClock/monsprite.h."""
+    counts = [0] * len(pal)
+    for f in range(act.frames):
+        frame = act.data[f * act.w * act.h : (f + 1) * act.w * act.h]
+        for idx in frame:
+            if idx != 0xFF and idx < len(pal):
+                counts[idx] += 1
+
+    best, best_pal = 0, None
+    for i, c in enumerate(pal):
+        n = counts[i]
+        if not n:
+            continue
+        r, g, b = _expand5(c >> 11), _expand6(c >> 5), _expand5(c)
+        lum = (r * 30 + g * 59 + b * 11) // 100
+        if lum < 35 or lum > 240:
+            continue
+        sat = max(r, g, b) - min(r, g, b)
+        score = n * (sat + 40)
+        if lum < 90:
+            score //= 2
+        if score > best:
+            best, best_pal = score, c
+    if best_pal is None:
+        return 0xFFFF
+
+    r, g, b = _expand5(best_pal >> 11), _expand6(best_pal >> 5), _expand5(best_pal)
+    lum = (r * 30 + g * 59 + b * 11) // 100
+    if 0 < lum < 145:
+        f = min(250, 14500 // lum)
+        r, g, b = min(255, r * f // 100), min(255, g * f // 100), min(255, b * f // 100)
+    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+
+
 def sprite_scale(idle: Act, act: Act, max_scale: int = 6) -> int:
     span = idle.base - idle.top if idle.base > idle.top else idle.h
-    s = (235 + span // 2) // span if span else 3
+    s = (185 + span // 2) // span if span else 3
     s = max(s, 2)
-    while s > 1 and (act.w * s > 400 or span * s > 245):
+    while s > 1 and (act.w * s > 400 or span * s > 190):
         s -= 1
     return min(s, max_scale)
 
@@ -234,13 +277,14 @@ def draw_sprite(img: Image.Image, pal: list[int], act: Act, idle: Act,
 # ------------------------------------------------------------------- scenes --
 def creature_scene(font: bytes, pal: list[int], act: Act, idle: Act, label: str,
                    frame: int, time_s: str = "12:34",
-                   date_s: str = "2026-11-12") -> Image.Image:
+                   date_s: str = "2026-11-12",
+                   time_color: int = ACCENT) -> Image.Image:
     img = Image.new("RGB", (W, H), rgb565(BG))
     draw = ImageDraw.Draw(img)
     draw_ring(draw)
     draw_battery(draw, font, y=CREATURE_BATTERY_Y)
 
-    text_center(draw, font, time_s, TIME_Y, TIME_SIZE, ACCENT)
+    text_center(draw, font, time_s, TIME_Y, TIME_SIZE, time_color)
     text_center(draw, font, f"{date_s}  {label.split()[0]}", DATE_Y, DATE_SIZE, DIM)
 
     # fillEllipse(233, ground + 6, 74, 9)
@@ -321,15 +365,19 @@ def main() -> int:
         act = idle_act(acts)
         idle = acts[0] if acts and acts[0] else act
         n = min(args.frames, act.frames)
-        still = creature_scene(font, pal, act, idle, f"{label} #{dex:03d}", 0)
+        acc = accent_color(pal, act)
+        label_text = f"{label} #{dex:03d}"
+        still = creature_scene(font, pal, act, idle, label_text, 0,
+                               time_color=acc)
         still.save(out / f"clock-{slug}.png")
         frames = [
-            creature_scene(font, pal, act, idle, f"{label} #{dex:03d}", i)
+            creature_scene(font, pal, act, idle, label_text, i,
+                           time_color=acc)
             for i in range(n)
         ]
         save_gif(frames, act.ms[:n], out / f"clock-{slug}.gif")
         print(f"{label}: {act.w}x{act.h}, {act.frames} idle frames, "
-              f"scale {sprite_scale(idle, act)}")
+              f"scale {sprite_scale(idle, act)}, accent #{acc:04X}")
 
     digital_scene(font).save(out / "clock-digital.png")
     print(f"wrote {out}")
