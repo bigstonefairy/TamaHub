@@ -1,4 +1,4 @@
-// TamaClock v1.1 - a standalone RTC clock for TamaHub v2.
+// TamaClock v1.2 - a standalone RTC clock for TamaHub v2.
 //
 // Lives in any 2 MB ota slot.  It reuses the PCF85063 the games already keep
 // running, so no new time source is needed.  The games seed the RTC with a
@@ -8,16 +8,17 @@
 //
 // Gestures:
 //   swipe up / down  previous / next face
-//   long press       next theme colour
+//   long press       on the creature: next sprite; elsewhere: next colour
 //   tap             12 / 24 hour
 //   PWR (short)     screen off / on
 //   BOOT (short)    12 / 24 hour, or wake
 //   BOOT (2 s)      return to TamaHub
 //
-// Faces: only the digital face is enabled for now.  The Pokemon, Digimon,
-// Mario and Zelda scenes are parked (THEMED_FACES_ENABLED 0) until they are
-// redone as SD packs (/tamaclock/<name>.tnm); the old procedural code and the
-// pack loader stay in the tree so that work can resume later.
+// Faces: DIGITAL, POKEMON and DIGIMON.  The two creature faces draw a random
+// animation taken from the SAME SD sprite packs the games use
+// (/tamapoke/mons, /tamadigi/mons); there is no separate clock art to install.
+// The creature changes every 5 minutes, and a long press on it skips ahead.
+// Mario and Zelda stay parked for the later Game & Watch pass.
 //
 // Board: Waveshare ESP32-S3-Touch-AMOLED-1.75 (16 MB flash / 8 MB PSRAM)
 
@@ -40,10 +41,11 @@
 #include <XPowersLib.h>
 #include "multiboot.h"
 #include "clockpack.h"
+#include "monsprite.h"
 #include "scenes.h"
 
 #define TAMAHUB_APP_NAME "TamaClock"
-#define TAMAHUB_APP_VERSION "1.1.1"
+#define TAMAHUB_APP_VERSION "1.2.0"
 
 // TamaHub scans the image for these tags, so the app can live in any slot.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:" TAMAHUB_APP_NAME;
@@ -107,15 +109,13 @@ enum Face {
 static const char *const FACE_NAMES[FACE_COUNT] = {"DIGITAL", "POKEMON",
                                                    "DIGIMON", "MARIO",
                                                    "ZELDA"};
-static const char *const PACK_NAMES[FACE_COUNT] = {"", "poke", "digi", "mario",
-                                                   "zelda"};
-// The themed faces are temporarily unavailable while they are rebuilt around
-// SD animation packs.  Flip this to 1 to bring the procedural scenes back.
-#define THEMED_FACES_ENABLED 0
+// Faces that are live today.  MARIO/ZELDA keep their ids so an old NVS value
+// still means what it meant, but they stay parked until the Game & Watch pass.
+static const uint8_t FACE_LIVE[] = {FACE_DIGITAL, FACE_POKE, FACE_DIGI};
+static const int FACE_LIVE_COUNT = sizeof(FACE_LIVE) / sizeof(FACE_LIVE[0]);
 
 // ---------------------------------------------------------------- state ------
 static Preferences prefs;
-static ClockPack pack;
 static bool sdReady = false;
 
 static uint8_t face = FACE_DIGITAL;
@@ -123,6 +123,18 @@ static uint8_t theme = 0;
 static uint8_t brightness = 200;
 static bool use24h = true;
 static bool asleep = false;
+
+// One creature at a time, read from the game's own SD pack.  dexList is the
+// scan of that pack; 400 covers TamaPoke's 386 with room to spare.
+static MonsPack mon;
+static uint16_t dexList[400];
+static uint16_t dexCount = 0;
+static uint16_t dexPos = 0;
+static uint8_t dexRoot = 0;          // 0 none, 1 Poke, 2 Digi
+static uint32_t monAt = 0;           // when this creature appeared
+static uint32_t monAnim = 0;         // animation time origin
+static bool monOk = false;
+#define MON_SWAP_MS (5UL * 60UL * 1000UL)
 
 static int32_t dateOffset = 0;
 static bool clockOk = false;
@@ -140,8 +152,6 @@ static uint32_t lastSecond = 0xFFFFFFFF;
 
 static char toastMsg[20] = "";
 static uint32_t toastUntil = 0;
-
-static uint32_t forceShowStart = 0;
 
 static String serialCmd;
 
@@ -303,8 +313,8 @@ static void readBattery() {
   batteryPct = pmu.isBatteryConnect() ? pmu.getBatteryPercent() : -1;
 }
 
-static void drawBattery() {
-  const int16_t w = 26, h = 14, y = 40;
+static void drawBattery(int16_t y = 40) {
+  const int16_t w = 26, h = 14;
   const int16_t x = 199;
   const uint16_t level = batteryPct <= 15 ? C_BAD
                         : batteryPct <= 30 ? C_WARN
@@ -333,15 +343,6 @@ static void drawBattery() {
 // ---------------------------------------------------------------- chrome -----
 static void drawRing() {
   gfx->drawCircle(233, 233, 224, C_LINE);
-}
-
-static void drawFaceDots(int16_t y) {
-  const int16_t spacing = 24;
-  const int16_t x0 = 233 - (FACE_COUNT - 1) * spacing / 2;
-  for (int i = 0; i < FACE_COUNT; i++) {
-    gfx->fillCircle(x0 + i * spacing, y, i == face ? 6 : 4,
-                    i == face ? accent() : C_LINE);
-  }
 }
 
 // Seconds as 60 ticks just inside the ring; that keeps the big time text
@@ -406,8 +407,8 @@ static void drawDigitalFace() {
 
   // One face only for now, so the face dots would just be noise.
   // drawFaceDots(300);
-  textCenter("FACE: DIGITAL ONLY   TAP: 12/24", 348, 1, C_DIM);
-  textCenter("HOLD: COLOR   PWR: SLEEP", 362, 1, C_DIM);
+  textCenter("SWIPE: POKEMON / DIGIMON", 348, 1, C_DIM);
+  textCenter("TAP: 12/24   HOLD: COLOR", 362, 1, C_DIM);
   textCenter("TamaClock v" TAMAHUB_APP_VERSION, 396, 1, C_DIM);
   drawToast(316);
 
@@ -415,22 +416,14 @@ static void drawDigitalFace() {
   dirty = false;
 }
 
-// ---------------------------------------------------------------- themed -----
-static float hourPhase() {
-  const uint32_t now = millis();
-  if (forceShowStart && now - forceShowStart < 20000) {
-    return (now - forceShowStart) / 20000.0f;
-  }
-  refreshClock();
-  if (!gClockOk) return -1.0f;
-  if (gTm.tm_min == 0 && gTm.tm_sec < 20) return gTm.tm_sec / 20.0f;
-  return -1.0f;
-}
-
-static void drawThemedFace() {
+// ---------------------------------------------------------------- creature ---
+// Layout: the clock across the top, one animated creature standing on a shadow
+// line under it, and a single hint row inside the ring.  The creature is drawn
+// from the game's own SD pack, so it is the same art the game shows.
+static void drawCreatureFace() {
   gfx->fillScreen(C_BG);
   drawRing();
-  drawBattery();
+  drawBattery(24);  // sits above the big time on this face
 
   refreshClock();
   struct tm t = {};
@@ -448,82 +441,120 @@ static void drawThemedFace() {
       snprintf(hm, sizeof(hm), "%d:%02d", hour12(t.tm_hour), t.tm_min);
     }
   }
-  textCenter(hm, 62, 8, accent());
+  textCenter(hm, 58, 9, accent());
 
-  char date[24] = "";
+  char date[28] = "RTC NOT SET";
   if (clockOk) {
     snprintf(date, sizeof(date), "%04d-%02d-%02d  %s", t.tm_year + 1900,
              t.tm_mon + 1, t.tm_mday, FACE_NAMES[face]);
+  }
+  textCenter(date, 128, 2, C_DIM);
+
+  const int16_t ground = 398;
+  gfx->fillEllipse(233, ground + 6, 74, 9, 0x18C3);
+
+  if (monOk) {
+    const uint8_t act = mon.acts[PMD_IDLE].frames ? PMD_IDLE : mon.firstAct();
+    mon.draw(gfx, act, 233, ground, millis() - monAnim, 6);
+    char lbl[20];
+    snprintf(lbl, sizeof(lbl), "%s #%03u", FACE_NAMES[face], dexList[dexPos]);
+    textCenter(lbl, 416, 1, C_DIM);
   } else {
-    snprintf(date, sizeof(date), "RTC NOT SET");
-  }
-  textCenter(date, 344, 2, C_DIM);
-
-  const float hp = hourPhase();
-  bool packed = false;
-  if (pack.ready()) {
-    uint16_t frame = 0;
-    const uint16_t fps = pack.fps();
-    if (hp >= 0 && pack.hourCount() > 0) {
-      uint16_t idx = (uint16_t)(hp * pack.hourCount());
-      if (idx >= pack.hourCount()) idx = pack.hourCount() - 1;
-      frame = pack.hourStart() + idx;
+    // No card or no pack: the built-in scene keeps the face alive instead of
+    // leaving a hole, and the label says why it is not a real sprite.
+    if (face == FACE_POKE) {
+      scenes::poke(gfx, 233, 300, millis(), -1.0f, accent());
     } else {
-      const uint16_t idle = pack.hourStart() ? pack.hourStart() : pack.frames();
-      // Split the multiply so millis() * fps cannot overflow after a week.
-      const uint32_t secs = millis() / 1000UL;
-      const uint32_t frac = (millis() % 1000UL) * fps / 1000UL;
-      frame = (uint16_t)((secs * fps + frac) % idle);
+      scenes::digi(gfx, 233, 300, millis(), -1.0f, accent());
     }
-    packed = pack.draw(gfx, frame, 233, 238);
-  }
-  if (!packed) {
-    switch (face) {
-      case FACE_POKE:
-        scenes::poke(gfx, 233, 238, millis(), hp, accent());
-        break;
-      case FACE_DIGI:
-        scenes::digi(gfx, 233, 238, millis(), hp, accent());
-        break;
-      case FACE_MARIO:
-        scenes::mario(gfx, 233, 238, millis(), hp, accent());
-        break;
-      case FACE_ZELDA:
-        scenes::zelda(gfx, 233, 238, millis(), hp, accent());
-        break;
-      default:
-        break;
-    }
+    textCenter("NO SPRITES ON SD", 416, 1, C_WARN);
   }
 
-  drawFaceDots(376);
-  drawToast(310);
+  textCenter("HOLD PET: NEXT   SWIPE: FACE", 438, 1, C_DIM);
+  drawToast(160);
   gfx->flush();
   dirty = false;
 }
 
 static void draw() {
-#if THEMED_FACES_ENABLED
   if (face == FACE_DIGITAL) {
     drawDigitalFace();
+  } else if (face == FACE_POKE || face == FACE_DIGI) {
+    drawCreatureFace();
   } else {
-    drawThemedFace();
+    // A parked face saved by an older firmware: fall back to the clock.
+    face = FACE_DIGITAL;
+    drawDigitalFace();
   }
-#else
-  drawDigitalFace();
-#endif
   lastDraw = millis();
 }
 
-// ---------------------------------------------------------------- SD ---------
-static void loadPack() {
-  pack.close();
-  if (!sdReady || face == FACE_DIGITAL) return;
-  char path[40];
-  snprintf(path, sizeof(path), "/tamaclock/%s.tnm", PACK_NAMES[face]);
-  if (!pack.open(path, face + 1)) {
-    Serial.printf("no pack at %s (procedural scene)\n", path);
+// ---------------------------------------------------------------- sprites ----
+static bool faceAnimated() { return face == FACE_POKE || face == FACE_DIGI; }
+static const char *monRoot() {
+  return face == FACE_POKE ? "/tamapoke/mons" : "/tamadigi/mons";
+}
+
+// Tries the current slot, then every other entry, so one unreadable file
+// cannot leave the face blank.
+static bool loadMon() {
+  monOk = false;
+  if (!dexCount) return false;
+  for (uint16_t i = 0; i < dexCount; i++) {
+    if (mon.open(monRoot(), dexList[dexPos])) {
+      monOk = true;
+      monAnim = millis();
+      monAt = monAnim;
+      Serial.printf("clock sprite: %s #%u\n", FACE_NAMES[face], dexList[dexPos]);
+      return true;
+    }
+    dexPos = (uint16_t)((dexPos + 1) % dexCount);
   }
+  Serial.printf("clock sprite: nothing readable in %s\n", monRoot());
+  return false;
+}
+
+// randomPick: the 5-minute timer.  Otherwise the long press walks the list in
+// order, which makes it obvious that the gesture moved to the next one.
+static void nextMon(bool randomPick) {
+  if (!faceAnimated()) return;
+  if (!dexCount) {
+    dexCount = (uint16_t)monsScan(monRoot(), dexList, 400);
+    if (!dexCount) {
+      dirty = true;
+      return;
+    }
+  }
+  if (randomPick) {
+    uint16_t p = (uint16_t)random(dexCount);
+    if (dexCount > 1 && p == dexPos) p = (uint16_t)((p + 1) % dexCount);
+    dexPos = p;
+  } else {
+    dexPos = (uint16_t)((dexPos + 1) % dexCount);
+  }
+  loadMon();
+  dirty = true;
+}
+
+// Called on boot and whenever the face changes: rescan only when the pack
+// folder changed, then show a random creature.
+static void enterMonFace() {
+  if (!faceAnimated()) return;
+  const uint8_t root = (face == FACE_POKE) ? 1 : 2;
+  if (dexRoot != root) {
+    mon.close();
+    dexRoot = root;
+    dexCount = 0;
+    dexPos = 0;
+  }
+  if (!dexCount) dexCount = (uint16_t)monsScan(monRoot(), dexList, 400);
+  if (!dexCount) {
+    monOk = false;
+    Serial.printf("clock sprite: no pNNN.bin in %s\n", monRoot());
+    return;
+  }
+  dexPos = (uint16_t)random(dexCount);
+  loadMon();
 }
 
 static bool sdMount() {
@@ -563,21 +594,34 @@ static void applyBrightness(uint8_t b) {
   prefs.putUChar("bright", b);
 }
 
+// Steps through FACE_LIVE only, so the parked MARIO/ZELDA ids are skipped
+// instead of showing a blank face.  NEXT/PREV come in as face +/- 1 and wrap
+// through the live list; FACE=n still picks a live id by number.
 static void setFace(int f) {
-#if THEMED_FACES_ENABLED
-  if (f < 0) f = FACE_COUNT - 1;
-  face = (uint8_t)(f % FACE_COUNT);
+  int idx = 0;
+  for (int i = 0; i < FACE_LIVE_COUNT; i++)
+    if (FACE_LIVE[i] == face) idx = i;
+  int target = -1;
+  if (f >= 0)
+    for (int i = 0; i < FACE_LIVE_COUNT; i++)
+      if (FACE_LIVE[i] == (uint8_t)f) target = i;
+  if (target < 0) {
+    int delta = (f - (int)face) % FACE_LIVE_COUNT;
+    if (delta < 0) delta += FACE_LIVE_COUNT;
+    target = (idx + delta) % FACE_LIVE_COUNT;
+  }
+  face = FACE_LIVE[target];
   prefs.putUChar("face", face);
-  loadPack();
+  if (faceAnimated()) {
+    enterMonFace();
+  } else {
+    mon.close();
+    monOk = false;
+    dexRoot = 0;
+    dexCount = 0;
+  }
   flashToast(FACE_NAMES[face]);
   dirty = true;
-#else
-  // Themed faces are parked.  Swiping still gives feedback so the gesture
-  // does not look broken, but the digital face stays put.
-  (void)f;
-  flashToast("DIGITAL ONLY");
-  dirty = true;
-#endif
 }
 
 static void setTheme(int t) {
@@ -632,7 +676,13 @@ static void pollTouch() {
       setFace(face + (dy < 0 ? 1 : -1));
       touchConsumed = true;
     } else if (!touchConsumed && now - touchT0 >= 800) {
-      setTheme(theme + 1);
+      // Holding the creature skips to the next sprite; anywhere else keeps the
+      // old "next theme colour" gesture.
+      if (faceAnimated() && touchY0 > 200) {
+        nextMon(false);
+      } else {
+        setTheme(theme + 1);
+      }
       touchConsumed = true;
     }
     return;
@@ -680,13 +730,14 @@ static void handleCommand(const String &c) {
     if (e) gmtime_r(&tt, &t);
     Serial.printf("face=%u(%s) theme=%u(%s) bright=%u %s rtc=%s "
                   "display=%04d-%02d-%02d %02d:%02d:%02d off=%d days "
-                  "bat=%d%% usb=%d sd=%d pack=%d\n",
+                  "bat=%d%% usb=%d sd=%d mon=%u/%u(%s) ok=%d\n",
                   face, FACE_NAMES[face], theme, THEMES[theme].name,
                   (unsigned)brightness, use24h ? "24h" : "12h",
                   e ? "ok" : "unset", t.tm_year + 1900, t.tm_mon + 1,
                   t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
                   (int)(dateOffset / 86400), batteryPct, batteryUsb ? 1 : 0,
-                  sdReady ? 1 : 0, pack.ready() ? 1 : 0);
+                  sdReady ? 1 : 0, (unsigned)(dexCount ? dexPos + 1 : 0),
+                  (unsigned)dexCount, FACE_NAMES[face], monOk ? 1 : 0);
   } else if (c.startsWith("SET=")) {
     int y = 0, mo = 0, d = 0, h = 0, mi = 0, s = 0;
     const char *p = c.c_str() + 4;
@@ -753,20 +804,22 @@ static void handleCommand(const String &c) {
   } else if (c == "WAKE") {
     leaveSleep();
   } else if (c == "SHOW") {
-    forceShowStart = millis();
-    if (forceShowStart == 0) forceShowStart = 1;
     dirty = true;
   } else if (c == "SD") {
     sdMount();
-    loadPack();
+    enterMonFace();
     dirty = true;
-  } else if (c == "PACK") {
-    loadPack();
+  } else if (c == "MON=NEXT") {
+    nextMon(false);
+  } else if (c == "MON=RANDOM") {
+    nextMon(true);
+  } else if (c == "MON=RELOAD") {
+    enterMonFace();
     dirty = true;
   } else if (c.length()) {
     Serial.println("commands: STATUS | SET=YYYY-MM-DD HH:MM:SS | 12H | 24H | "
                    "AUTO | REAL | FACE=n|NEXT|PREV | COLOR=n|NEXT | "
-                   "BRIGHT=n | SLEEP | WAKE | SHOW | SD | PACK");
+                   "BRIGHT=n | SLEEP | WAKE | SHOW | SD | MON=NEXT|RANDOM|RELOAD");
   }
 }
 
@@ -809,10 +862,13 @@ void setup() {
 
   prefs.begin("tamaclock", false);
   face = prefs.getUChar("face", FACE_DIGITAL);
-  if (face >= FACE_COUNT) face = FACE_DIGITAL;
-#if !THEMED_FACES_ENABLED
-  face = FACE_DIGITAL;  // old saves may point at a parked theme
-#endif
+  // Old saves may point at a parked theme (MARIO/ZELDA) or a stale id.
+  {
+    bool live = false;
+    for (int i = 0; i < FACE_LIVE_COUNT; i++)
+      if (FACE_LIVE[i] == face) live = true;
+    if (!live) face = FACE_DIGITAL;
+  }
   theme = prefs.getUChar("theme", 0);
   if (theme >= THEME_COUNT) theme = 0;
   brightness = prefs.getUChar("bright", 200);
@@ -843,7 +899,7 @@ void setup() {
 
   readBattery();
   sdMount();
-  loadPack();
+  enterMonFace();
 
   pwrSetup();
   draw();
@@ -916,7 +972,8 @@ void loop() {
   }
 
   // Digital face: one redraw per second is enough (second ticks + date).
-  // Themed faces run at about 8 fps idle and 12 fps during the hourly show.
+  // Creature faces run at ~9 fps for the idle animation, and swap the sprite
+  // every MON_SWAP_MS (5 minutes).
   if (face == FACE_DIGITAL) {
     if (gClockOk && (uint32_t)gTm.tm_sec != lastSecond) {
       lastSecond = gTm.tm_sec;
@@ -924,8 +981,8 @@ void loop() {
     }
     if (now - lastDraw >= 1000) dirty = true;
   } else {
-    const uint32_t interval = hourPhase() >= 0 ? 80 : 120;
-    if (now - lastDraw >= interval) dirty = true;
+    if (monOk && now - monAt >= MON_SWAP_MS) nextMon(true);
+    if (now - lastDraw >= 110) dirty = true;
   }
 
   if (dirty) draw();

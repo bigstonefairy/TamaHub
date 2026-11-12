@@ -187,8 +187,8 @@
     <h2>설치 <span class="pill">Chrome / Edge 데스크톱</span></h2>
     <div class="warn">
       <strong>v2 레이아웃은 한 번만 설치하면 됩니다. 세이브는 지우지 않습니다.</strong><br>
-      이전 버전이 이미 설치되어 있다면 아래 <strong>일괄 설치</strong>를 한 번만 실행하세요.
-      선택한 앱이 순서대로 모두 기록됩니다.
+      이전 버전이 이미 설치되어 있다면 아래 <strong>1번 배치 전체 설치</strong>를 한 번만 실행하세요.
+      1번에서 고른 앱이 순서대로 모두 기록됩니다.
       NVS와 otadata 주소가 그대로라 Pokémon / Digimon / Naruto 세이브가 유지됩니다.
       Erase는 <em>처음 설치</em>하거나 칩을 완전히 초기화할 때만 사용하세요.<br>
       <strong>설치 중에는 USB 케이블을 뽑지 마세요.</strong> 쓰기가 중단되면 부팅이 불가능해질 수 있습니다.
@@ -198,6 +198,10 @@
     <p>각 앱을 어느 슬롯에 넣을지 고르세요. 허브는 항상 <code>factory</code>에 있고,
        앱은 이름표를 스스로 갖고 있어 <strong>순서와 종류를 바꿔도</strong> 허브가 알아서 표시합니다.
        고른 배치는 이 브라우저에 저장되어 다음 방문에도 그대로 남습니다.</p>
+    <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
+      여기서 고른 배치가 곧 <strong>“선택한 앱”</strong>입니다. 체크박스 같은 추가 선택 단계는 없습니다.
+      아래 버튼은 이 배치를 그대로 사용합니다.
+    </p>
     <div class="slot-picker" id="slot-picker"></div>
     <p class="center-link"><button id="layout-reset" class="linklike" type="button">기본 배치로 되돌리기</button></p>
     <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
@@ -217,24 +221,29 @@
       </p>
     </div>
 
-    <h3>2. 일괄 설치</h3>
+    <h3>2. 설치 / 업데이트 <span class="pill">둘 중 하나만</span></h3>
     <div class="install big">
       <div class="label">
-        <strong>선택한 구성 일괄 설치 (세이브 유지)</strong>
-        <span id="batch-note">부트로더 · v2 파티션 테이블 · 허브 · 선택한 앱을 순서대로 씁니다. Erase 없음.</span>
+        <strong>1번 배치 전체 설치 (세이브 유지)</strong>
+        <span id="batch-note">부트로더 · v2 파티션 테이블 · 허브 · 1번 배치 앱을 순서대로 씁니다. Erase 없음.</span>
       </div>
       <esp-web-install-button id="btn-migrate"></esp-web-install-button>
     </div>
+    <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
+      처음 설치하거나 앱 구성을 바꿨다면 이 버튼 하나면 충분합니다. 부트로더·파티션까지 다시 쓰지만
+      세이브 영역(NVS)은 지우지 않습니다.
+    </p>
 
     <h3>앱만 업데이트 (세이브 유지)</h3>
-    <p>파티션 테이블과 NVS를 건드리지 않고, 위에서 고른 앱만 각자의 슬롯에 다시 씁니다.</p>
+    <p>파티션 테이블과 NVS를 건드리지 않고, <strong>1번에서 고른 앱만</strong> 각자의 슬롯에 다시 씁니다.
+       앱 버전만 올리고 싶을 때 사용하세요.</p>
     <div class="updates">
       <div class="install">
-        <div class="label"><strong>선택한 앱</strong><span>현재 배치 그대로</span></div>
+        <div class="label"><strong>1번 배치 앱만</strong><span>부트로더 · 파티션 제외</span></div>
         <esp-web-install-button id="btn-apps"></esp-web-install-button>
       </div>
       <div class="install">
-        <div class="label"><strong>허브만</strong><span>factory</span></div>
+        <div class="label"><strong>허브만</strong><span>factory 슬롯만, 앱은 그대로</span></div>
         <esp-web-install-button manifest="manifest-factory.json">
           <button slot="activate" class="cta" style="font-size:14px;padding:9px 16px">허브만 설치</button>
           <span slot="unsupported">Chrome / Edge 데스크톱에서만 설치할 수 있습니다.</span>
@@ -251,7 +260,7 @@
       <div class="install">
         <div class="label">
           <strong>전체 설치 (Erase)</strong>
-          <span>부트로더 · v2 파티션 테이블 · 허브 · 선택한 앱</span>
+          <span>부트로더 · v2 파티션 테이블 · 허브 · 1번 배치 앱</span>
         </div>
         <esp-web-install-button id="btn-full">
           <button slot="activate" class="cta" style="font-size:14px;padding:9px 16px;background:#7a2a2a">전체 설치 시작</button>
@@ -375,7 +384,8 @@
     <ul>
       <li><strong>화면이 검은색</strong>: 부팅 중 BOOT를 누르고 있었는지 확인하세요. 다운로드 모드라면 USB를 다시 꽂고 이 페이지에서 재설치합니다.</li>
       <li><strong>허브로 돌아오지 않음</strong>: 아래쪽 버튼을 2초 누른 뒤 <em>완전히 떼야</em> 전환됩니다.</li>
-      <li><strong>세이브가 사라짐</strong>: 전체 설치(Erase)를 했는지 확인하세요. 앱 업데이트와 일괄 설치는 NVS를 건드리지 않습니다.</li>
+      <li><strong>세이브가 사라짐</strong>: 전체 설치(Erase)를 했는지 확인하세요. 앱만 업데이트/1번 배치 전체 설치와 허브만 설치는 NVS를 건드리지 않습니다.</li>
+      <li><strong>버전이 예전 값으로 보임</strong>: GitHub Pages가 아직 이전 파일을 내보내는 중일 수 있습니다. 1~2분 뒤 새로고침하면 갱신됩니다.</li>
       <li><strong>시리얼 모니터</strong>: 115200 baud. 허브에서 <code>1</code>–<code>5</code>는 즉시 실행, <code>SLOTS</code>는 슬롯 상태 출력입니다.</li>
     </ul>
   </section>
@@ -964,8 +974,8 @@
   ];
 
   const BUTTON_LABELS = {
-    'btn-migrate': '일괄 설치 시작',
-    'btn-apps': '선택한 앱 다시 쓰기',
+    'btn-migrate': '1번 배치 전체 설치',
+    'btn-apps': '1번 배치 앱만 다시 쓰기',
     'btn-full': '전체 설치 시작',
   };
 
@@ -1203,7 +1213,7 @@
     if (note) {
       const count = layout.filter(Boolean).length;
       note.textContent =
-        `부트로더 · v2 파티션 테이블 · 허브 · 선택한 앱 ${count}개를 ` +
+        `부트로더 · v2 파티션 테이블 · 허브 · 1번 배치 앱 ${count}개를 ` +
         '한 번에 순서대로 씁니다. Erase 없음.';
     }
   }
@@ -1271,27 +1281,28 @@
 
   async function showVersions() {
     const el = $('versions');
-    const items = [
-      ['Hub', 'manifest-factory.json'],
-      ['Clock', 'manifest-ota0.json'],
-      ['Pokémon', 'manifest-ota1.json'],
-      ['Digimon', 'manifest-ota2.json'],
-      ['내비', 'manifest-ota3.json'],
+    // The slot numbers (ota_0..ota_3) do not say which app is in them, so the
+    // label comes from each manifest's own name.  The timestamp defeats the
+    // GitHub Pages cache that made a fresh upload look like the old version.
+    const files = [
+      'manifest-factory.json', 'manifest-ota0.json', 'manifest-ota1.json',
+      'manifest-ota2.json', 'manifest-ota3.json',
     ];
     try {
-      const rows = await Promise.all(items.map(async ([label, file]) => {
+      const rows = await Promise.all(files.map(async (file) => {
         try {
-          const response = await fetch(file);
+          const response = await fetch(`${file}?t=${Date.now()}`, { cache: 'no-store' });
           if (!response.ok) throw new Error(String(response.status));
           const data = await response.json();
+          const label = String(data.name || file).replace(/\s+update$/i, '');
           return `${label} <b>v${data.version}</b>`;
         } catch (e) {
-          return `${label} <b>v?</b>`;
+          return `${file.replace('manifest-', '').replace('.json', '')} <b>v?</b>`;
         }
       }));
       el.innerHTML = rows.join(' · ');
     } catch (e) {
-      el.textContent = '버전 정보를 불러오지 못했습니다.';
+      el.textContent = '버전 정보를 불러오지 못했습니다. 잠시 후 새로고침하세요.';
     }
   }
   showVersions();

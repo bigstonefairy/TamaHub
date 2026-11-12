@@ -1,5 +1,66 @@
 # Changelog
 
+## v2.5.3 — 2026-11-12
+
+TamaClock gets its Pokémon and Digimon faces, drawn from the same sprites the
+games already keep on the SD card. The installer page also says exactly which
+button writes what, and no longer shows a stale version after an upload.
+
+### Changed
+
+- **TamaClock 1.2.0 — creature faces**: swiping now cycles
+  `DIGITAL → POKEMON → DIGIMON`. The top of the panel keeps the large time,
+  the creature stands under it on a shadow line with a `POKEMON #025` /
+  `DIGIMON #003` label.
+- The clock has **no art of its own**. `apps/TamaClock/monsprite.h` decodes the
+  games' TPK2 files directly (`/tamapoke/mons/pNNN.bin`,
+  `/tamadigi/mons/pNNN.bin`), so a sprite that works in the game works here.
+  Only the `IDLE` action is used and one creature is held in PSRAM.
+- The creature changes every **5 minutes**; a 0.8 s long press on it advances
+  to the next entry immediately. Long-pressing anywhere else still changes the
+  theme colour.
+- Scale is computed from the sprite's visible rows, not its padded canvas, then
+  clamped to 400 × 245 px. Missing card, empty folder or an unreadable file
+  falls back to the built-in `scenes::poke/digi` drawing plus
+  `NO SPRITES ON SD`.
+- MARIO/ZELDA stay parked for the Game & Watch pass. Their face ids and the
+  old `TNM1` loader in `clockpack.h` are kept, and a saved face 3/4 boots into
+  `DIGITAL` instead of a blank screen.
+- `STATUS` reports `mon=<pos>/<count>(FACE) ok=<0|1>`, and the new serial
+  commands `MON=NEXT`, `MON=RANDOM` and `MON=RELOAD` exercise the swap without
+  touching the screen.
+- **Installer wording**: the big button is now `1번 배치 전체 설치`, the apps-only
+  button is `1번 배치 앱만 다시 쓰기`, and section 1 states that the slot layout
+  *is* the selection — there is no separate checkbox step. The hub-only button
+  now says it writes only `factory`.
+- **Installer versions**: the version line reads each manifest's own name and
+  fetches with `?t=…` / `no-store`, so a fresh upload no longer looks like the
+  previous version. A troubleshooting row explains the 1–2 minute GitHub Pages
+  lag.
+
+### Added
+
+- `tools/render_clock_preview.py` decodes the real TPAK/TPK2 files, renders
+  with the same 5×7 font and coordinates the firmware uses, and writes the
+  previews in `docs/preview/` (`clock-pokemon.gif`, `clock-digimon.gif`,
+  `clock-digital.png`).
+
+### Firmware
+
+| App | Version | Size | Default slot |
+|---|---|---:|---|
+| TamaHub | 1.2 | 435,632 B | `0x20000` (`factory`) |
+| TamaPoke | 1.38.1 | 784,944 B | `0x420000` (`ota_1`) |
+| TamaDigi | 1.1.2 | 1,411,168 B | `0x620000` (`ota_2`) |
+| TamaClock | 1.2.0 | 529,024 B | `0x220000` (`ota_0`) |
+| TamaNav | 1.0.0 | 721,056 B | `0x820000` (`ota_3`) |
+
+### Notes
+
+- Physical checks are in `docs/TESTING.md` §8. Without hardware the 5-minute
+  swap, long-press hit area, sprite scaling and frame pacing are unverified on
+  device.
+
 ## v2.5.2 — 2026-11-12
 
 Releasing a pet is now a screen-wide gesture instead of a hidden menu item, and

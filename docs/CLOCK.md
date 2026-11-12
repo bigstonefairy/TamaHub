@@ -1,4 +1,4 @@
-# TamaClock v1.1
+# TamaClock v1.2
 
 Standalone clock for TamaHub v2. It uses the same PCF85063 the games keep
 running, the AXP2101 for battery state and the CST9217 touch panel. Any 2 MB
@@ -8,8 +8,9 @@ running, the AXP2101 for battery state and the CST9217 touch panel. Any 2 MB
 
 | Gesture | Action |
 |---|---|
-| Swipe up / down | Shows `DIGITAL ONLY` (themed faces are parked) |
-| Long press (0.8 s) | Next theme colour |
+| Swipe up / down | Next / previous face: `DIGITAL` → `POKEMON` → `DIGIMON` |
+| Long press on the creature (0.8 s) | Next creature in the pack (in list order) |
+| Long press elsewhere (0.8 s) | Next theme colour |
 | Tap | 12 / 24 hour |
 | PWR short press | Screen off / on |
 | BOOT short press | 12 / 24 hour (or wake) |
@@ -25,63 +26,74 @@ radius 196, which left the bottom help line outside the ring.
 
 ## Faces
 
-Only the digital face is enabled in v1.1.1. The themed scenes below still
-exist in `scenes.h`, but `THEMED_FACES_ENABLED` is `0`: swiping shows
-`DIGITAL ONLY` and `FACE=` forces face 0. The NVS `face` value is left
-untouched so a later firmware can restore the chosen face. The plan is to
-replace the procedural art with SD packs, which `clockpack.h` already loads.
-
-| # | Face | Scene (parked) |
+| # | Face | Scene |
 |---|---|---|
 | 0 | `DIGITAL` | Large 12× time, date, weekday, battery, second ticks |
-| 1 | `POKEMON` | Poké Ball, splits open once an hour |
-| 2 | `DIGIMON` | Egg wobbles, cracks and hatches once an hour |
-| 3 | `MARIO` | Platform scene; the walker jumps and a coin pops out |
-| 4 | `ZELDA` | Triforce, sword and pedestal; pieces light in sequence |
+| 1 | `POKEMON` | Random Pokémon animation from `/tamapoke/mons` |
+| 2 | `DIGIMON` | Random Digimon animation from `/tamadigi/mons` |
+| 3 | `MARIO` | Parked for the later Game & Watch pass |
+| 4 | `ZELDA` | Parked for the later Game & Watch pass |
+
+MARIO/ZELDA keep their ids so an old NVS `face` still means what it meant, but
+`FACE_LIVE` only steps through the three live faces. A saved 3/4 boots into
+`DIGITAL`.
 
 The digital layout: time y 120 (size 12), date y 228, weekday y 260, hints at
 y 348/362 (size 1) and the version at y 396. Those rows keep every glyph corner
 inside the radius-224 ring, and the block reads slightly above centre.
 
-The themed faces used to play their animation for the first 20 seconds of every
-hour (`minute == 0 && second < 20`). `SHOW` replays it on demand.
+## Creature faces
 
-### SD animation packs (optional)
-
-Put a pack at `/tamaclock/poke.tnm` (also `digi`, `mario`, `zelda`) and the
-firmware draws it instead of the procedural scene. If the file is missing or
-invalid, the built-in scene is used, so the clock never depends on the card.
-
-Format (little-endian):
-
-| Offset | Size | Field |
-|---|---|---|
-| 0 | 4 | magic `TNM1` |
-| 4 | 1 | format version = 1 |
-| 5 | 1 | theme: 1 Pokemon, 2 Digimon, 3 Mario, 4 Zelda (0 = any) |
-| 6 | 1 | frames per second, 1–30 |
-| 7 | 1 | reserved |
-| 8 | 2 | frame count |
-| 10 | 2 | frame width (8–280) |
-| 12 | 2 | frame height (8–200) |
-| 14 | 2 | first hourly frame (0 = no hourly animation) |
-| 16 | 2 | hourly frame count |
-| 18 | 2 | reserved |
-| 20 | … | RGB565 frames, `width × height × 2` bytes each |
-
-Frames are read with `seek()` on demand into one PSRAM buffer, so pack length is
-limited by the card, not by RAM. Frames are centred on the scene area at
-(233, 238); keep important art away from the outer 8 pixels.
-
-Generate a pack from PNGs or a GIF with:
+The clock does **not** ship its own art. It reads the exact sprite files the
+games already install on the card:
 
 ```
-pip install pillow
-python tools/make_clock_pack.py art/pokemon.gif -o web/sd/tamaclock/poke.tnm --theme poke --fps 10 --hour 20
+/tamapoke/mons/pNNN.bin    TPK2, dex 1..386 (sprites.pak + gen3 update)
+/tamadigi/mons/pNNN.bin    TPK2, dex 1..87  (sprites-ver1..5.pak)
 ```
 
-The last `--hour` frames are used for the hourly show; the earlier frames loop
-while idle.
+So if the game shows a sprite, the clock shows the same sprite. Shiny files
+(`psNNN.bin`) are skipped: they duplicate a normal entry.
+
+- On entering a face the folder is scanned once and a random creature is
+  loaded. Only the `IDLE` action is used, one creature in PSRAM at a time.
+- The creature changes every **5 minutes** (`MON_SWAP_MS`) to another random
+  entry. A long press on it moves to the next entry immediately, which makes
+  the gesture easy to see.
+- Scale is computed from the sprite's visible height (not its padded canvas),
+  anchored by the lowest used row, then clamped to 400 × 245 px so wide
+  sprites still fit inside the ring.
+- If the card is missing, the folder is empty or a file is unreadable, the
+  built-in `scenes::poke/digi` drawing plays and the row reads
+  `NO SPRITES ON SD`. The clock never shows an empty hole.
+
+Layout: time y 58 (size 9), date + face name y 128 (size 2), battery at y 24,
+shadow line at y 398, `POKEMON #025` / `DIGIMON #003` label y 416, hint
+`HOLD PET: NEXT   SWIPE: FACE` y 438 (all size 1). See
+`tools/render_clock_preview.py`, which decodes the real TPK2 files and draws
+the same coordinates with the Arduino_GFX 5×7 font. Its output lives in
+`docs/preview/`.
+
+Upload the sprites from the TamaHub installer while the matching game is
+running (Web Serial): TamaPoke for Pokémon, TamaDigi for Digimon. The clock
+itself has no uploader.
+
+Previews rendered from the real packs (same font, same coordinates):
+
+| Pokémon | Digimon |
+|---|---|
+| ![Pokémon face](preview/clock-pokemon.gif) | ![Digimon face](preview/clock-digimon.gif) |
+
+![Digital face](preview/clock-digital.png)
+
+Regenerate them with `python tools/render_clock_preview.py` after a layout
+change; `--pokemon` / `--digimon` pick another dex number.
+
+### Parked TNM packs
+
+`clockpack.h` (the old `TNM1` animation pack loader) and the procedural scenes
+in `scenes.h` stay in the tree. They are unused by the live faces and are kept
+for the Game & Watch pass.
 
 ## Date: why the games' clock and the date differ
 
@@ -128,11 +140,16 @@ SET=YYYY-MM-DD HH:MM:SS
 TIME=<epoch>
 12H | 24H
 AUTO | REAL
-FACE=0..4 | FACE=NEXT | FACE=PREV   (forces DIGITAL while themed faces are parked)
+FACE=0..2 | FACE=NEXT | FACE=PREV   (MARIO/ZELDA are parked and skipped)
 COLOR=0..6 | COLOR=NEXT
 BRIGHT=1..255
 SLEEP | WAKE
-SHOW          replay the hourly animation
-SD            remount the card
-PACK          reload the current face's pack
+SHOW          force a redraw
+SD            remount the card and rescan the sprite folder
+MON=NEXT      next creature in the pack
+MON=RANDOM     random creature now
+MON=RELOAD    rescan the folder and pick a random creature
 ```
+
+`STATUS` reports the current creature as `mon=<position>/<count>(FACE) ok=1`,
+so a sprite that failed to load is visible without a screen.

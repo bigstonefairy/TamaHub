@@ -33,7 +33,7 @@ Waveshare **ESP32-S3-Touch-AMOLED-1.75** 한 대에서 **TamaPoke(Pokémon)**,
                      (마지막 앱 자동 재개)
 
 TamaHub v1.2  (슬롯 배치는 설치 페이지에서 사용자가 선택)
-  ├─ 슬롯 1 → TamaClock v1.1.1
+  ├─ 슬롯 1 → TamaClock v1.2.0
   ├─ 슬롯 2 → TamaPoke expanded v1.38.1
   ├─ 슬롯 3 → TamaDigi v1.1.2
   ├─ 슬롯 4 → TamaNav v1.0.0 (턴바이턴, 폰 BLE 연동)
@@ -179,16 +179,22 @@ TamaNav는 밝기를 4단계로 조절합니다.
 
 ### TamaClock 조작
 
-- **위/아래로 스와이프**: `DIGITAL ONLY` 안내만 표시 (테마 화면은 잠시 휴면)
-- **길게 터치**: 테마 색상 변경 (노랑 → 하늘 → 초록 → 주황 → 분홍 → 흰색 → 보라)
+- **위/아래로 스와이프**: 화면 전환 `DIGITAL` → `POKEMON` → `DIGIMON`
+- **몬스터를 길게 터치 (0.8초)**: 다음 포켓몬/디지몬으로 넘김 (5분 타이머와 별개)
+- **그 밖을 길게 터치**: 테마 색상 변경 (노랑 → 하늘 → 초록 → 주황 → 분홍 → 흰색 → 보라)
 - **톡 터치**: 12/24시간 전환
 - **PWR 짧게**: 화면 끄기 / 켜기 (잠들기)
 - **BOOT 2초**: TamaHub로 복귀
 
-포켓몬/디지몬/마리오/젤다 화면은 품질 개편 전까지 꺼 두었습니다. 코드와 SD 팩
-로더(`/tamaclock/<face>.tnm`)는 남아 있으므로, 나중에 SD에서 애니메이션을 읽는
-방식으로 되살릴 수 있습니다. 자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를
+포켓몬/디지몬 화면은 게임이 SD에 넣어 둔 스프라이트(`/tamapoke/mons`,
+`/tamadigi/mons`)를 그대로 읽어 애니메이션합니다. 시계 위쪽은 크게, 아래쪽은
+몬스터가 서 있고, **5분마다 다른 몬스터로 바뀝니다**. 스프라이트가 없으면 내장
+장면과 `NO SPRITES ON SD` 안내로 대체됩니다. 마리오/젤다 페이스는 게임앤워치
+개편 때 다시 붙일 예정입니다. 자세한 내용은 [`docs/CLOCK.md`](docs/CLOCK.md)를
 참고하세요.
+
+플래시 전 화면 확인: [Pokémon 예시](docs/preview/clock-pokemon.gif) ·
+[Digimon 예시](docs/preview/clock-digimon.gif) · [디지털 예시](docs/preview/clock-digital.png)
 
 > 부팅 중에 BOOT를 누르고 있으면 다운로드 모드가 됩니다. 반드시 앱이 켜진 뒤에 누르세요.
 
@@ -510,7 +516,7 @@ hub/                  TamaHub 스케치 (factory)
 games/TamaPoke/       TamaPoke expanded v1.38.1 + 멀티부팅 패치
 games/TamaDigi/       TamaDigi v1.1.2 + 멀티부팅 패치
 games/TamaNaruto/     TamaNaruto v1.2.0 + 멀티부팅 패치
-apps/TamaClock/       TamaClock v1.1.1 (큰 디지털 시계, 테마 화면은 SD 팩 개편 전까지 휴면)
+apps/TamaClock/       TamaClock v1.2.0 (큰 디지털 시계 + SD 스프라이트 포켓몬/디지몬 페이스)
 apps/TamaNav/         TamaNav v1.0.0 (BLE 턴바이턴 표시, 폰 연동)
 partitions.csv        동결된 v2 파티션 테이블
 tools/                빌드/검증/설치 프로그램/SD 도우미
