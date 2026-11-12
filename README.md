@@ -60,7 +60,7 @@ GitHub Pages에 배포되는 `web/dist/index.html` 을 **Chrome 또는 Edge 데�
 
 1. 기기를 USB로 연결합니다.
 2. **슬롯 배치**에서 각 앱을 원하는 슬롯(`ota_0`–`ota_4`)에 배치합니다.
-   기본값은 Clock / Poke / Digi / 내비 / 비움입니다. 고른 배치는 이 브라우저에 저장됩니다.
+   기본값은 Clock / IdlePoke / IdleDigi / Poke / Digi입니다. 고른 배치는 이 브라우저에 저장됩니다.
 3. **설치 계획**에서 부트로더 → 파티션 → 허브 → 선택한 앱의 순서·주소·용량을 확인합니다.
 4. **일괄 설치 시작**을 누릅니다. 시리얼 포트를 **한 번만** 고르면 부트로더·v2 파티션
    테이블·허브·선택한 앱이 **자동으로 순서대로** 기록됩니다. Erase는 하지 않으므로
@@ -107,12 +107,13 @@ esptool.py --chip esp32s3 -p COM5 -b 921600 write_flash \
   0x8000   build/hub/hub.ino.partitions.bin \
   0x20000  build/hub/hub.ino.bin \
   0x220000 build/TamaClock/TamaClock.ino.bin \
-  0x420000 build/TamaPoke/TamaPoke.ino.bin \
-  0x620000 build/TamaDigi/TamaDigi.ino.bin \
-  0x820000 build/TamaNav/TamaNav.ino.bin
+  0x420000 build/IdlePoke/IdlePoke.ino.bin \
+  0x620000 build/IdleDigi/IdleDigi.ino.bin \
+  0x820000 build/TamaPoke/TamaPoke.ino.bin \
+  0xA20000 build/TamaDigi/TamaDigi.ino.bin
 ```
 
-위 주소는 **기본 배치**(Clock / Poke / Digi / 내비) 기준입니다. 설치 페이지에서
+위 주소는 **기본 배치**(Clock / IdlePoke / IdleDigi / Poke / Digi) 기준입니다. 설치 페이지에서
 순서를 바꿨다면 해당 앱을 선택한 슬롯 주소에 쓰면 됩니다. 허브는 슬롯 오프셋을
 하드코딩하지 않고 이미지 안의 `TAMAHUB_APP:` 이름표를 읽어 카드를 표시합니다.
 
@@ -448,7 +449,7 @@ ota_4,    app,  ota_4,   0xA20000, 0x200000,
 ```
 
 - 슬롯은 모두 **2MB**로 같습니다. TamaPoke 약 0.78MB, TamaDigi 약 1.41MB,
-  TamaNaruto 약 1.72MB, TamaClock 약 0.53MB, TamaNav 약 0.72MB로 여유가 있습니다.
+  IdlePoke 약 0.74MB, IdleDigi 약 1.41MB, TamaClock 약 0.53MB로 여유가 있습니다.
 - `nvs`(64KB)와 `otadata`(8KB)는 **v1과 같은 주소**입니다. 파티션 테이블만 다시 써도
   세이브는 유지됩니다. `tools/check_layout.py`가 v2 값과 다르면 빌드를 거부합니다.
 - 앱을 어느 슬롯에 넣어도 됩니다. 허브는 각 이미지의 `TAMAHUB_APP:<name>` /
@@ -456,9 +457,17 @@ ota_4,    app,  ota_4,   0xA20000, 0x200000,
 
 ### 기본 배치
 
-설치 페이지의 기본 배치는 `ota_0` TamaClock, `ota_1` TamaPoke, `ota_2` TamaDigi,
-`ota_3` TamaNav, `ota_4` 비움입니다. TamaNaruto를 쓰려면 원하는 슬롯을 Naruto로
-바꾸면 됩니다.
+설치 페이지의 기본 배치는 `ota_0` TamaClock, `ota_1` IdlePoke, `ota_2` IdleDigi,
+`ota_3` TamaPoke, `ota_4` TamaDigi입니다. TamaNaruto/TamaNav는 이 배포에서 제외됩니다.
+
+### 방치형 게임 (IdlePoke / IdleDigi)
+
+TamaPoke/TamaDigi의 UI·배경·SD 스프라이트를 그대로 쓰되, 돌봄을 없애고 **시간만** 남긴
+포크입니다. 현재 몬스터를 1시간 유지하면 갈래 중 하나로 자동 진화하고, 최종형에서
+1시간이 지나면 새 알로 순환합니다. 좌 스와이프=도감, 우 스와이프·길게 누르기=설정이며
+설정에서 시간과 배속(1/2/4/8x)을 바꿉니다. 오프라인 진행은 RTC 기준 최대 7일입니다.
+스프라이트는 `/tamapoke`, `/tamadigi`를 공유하고 세이브는 `idlepoke`, `idledigi`
+NVS로 분리되어 원본 게임의 세이브를 건드리지 않습니다.
 
 ### 내비게이션 (TamaNav)
 

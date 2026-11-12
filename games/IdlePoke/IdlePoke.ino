@@ -1848,13 +1848,13 @@ void drawScene(uint8_t biome, uint32_t now, bool night) {
   for (int y = 0; y < HORIZON; y += 8)
     gfx->fillRect(0, y, 466, 8, lerp565(top, bot, y, HORIZON));
 
-  // sol o luna (arriba a la derecha: la fecha del HUD ocupa el centro)
+  // sol o luna (dentro del circulo y a la derecha: la fecha ocupa el centro)
   if (night) {
-    gfx->fillCircle(398, 50, 22, C565(0xe8, 0xee, 0xf5));
-    gfx->fillCircle(407, 44, 20, lerp565(top, bot, 78, HORIZON));  // creciente
+    gfx->fillCircle(370, 70, 18, C565(0xe8, 0xee, 0xf5));
+    gfx->fillCircle(378, 64, 16, lerp565(top, bot, 78, HORIZON));  // creciente
     for (auto &st : STARS) gfx->fillRect(st[0], st[1], 4, 4, UI_WHITE);
   } else if (h < 18) {
-    gfx->fillCircle(400, 54, 24, h < 8 ? C565(0xff, 0xd9, 0x8a) : C565(0xff, 0xe7, 0x9f));
+    gfx->fillCircle(372, 74, 18, h < 8 ? C565(0xff, 0xd9, 0x8a) : C565(0xff, 0xe7, 0x9f));
     drawClouds(now, C565(0xff, 0xff, 0xff));
   } else {
     gfx->fillCircle(233, HORIZON - 6, 34, C565(0xff, 0xf1, 0xc8));  // sol poniente
@@ -3797,12 +3797,12 @@ void drawClockBtn(int x, int y, const char *l) {
 
 // Pildoras de ajustes. La fila de arriba es la nueva (modo facil + velocidad);
 // la de abajo conserva sonido, ahorro e idioma donde estaban.
-#define EZ_PILL_Y 256
+#define EZ_PILL_Y 244
 #define EASY_PILL_X 24
 #define EASY_PILL_W 200
 #define SPEED_PILL_X 236
 #define SPEED_PILL_W 196
-#define LANG_PILL_Y 296
+#define LANG_PILL_Y 284
 #define LANG_PILL_H 30
 #define LANG_PILL_X 336          // pildora de idioma (cicla EN/KO al tocar)
 #define LANG_PILL_W 96
@@ -3952,22 +3952,22 @@ void renderClock() {
   gfx->fillScreen(UI_BG_DAY);
   gfx->setTextColor(UI_INK);
   setSize(3);
-  setCur(CX - textW("SETTINGS", 3) / 2, 44);
+  setCur(CX - textW("SETTINGS", 3) / 2, 40);
   printT("SETTINGS");
 
   char t[8];
   snprintf(t, sizeof(t), "%02d:%02d", clockH, clockM);
   setSize(7);
-  setCur(CX - 105, 108);
+  setCur(CX - 105, 96);
   printT(t);
 
   // "-H/+H/-M/+M" sustituye a las etiquetas HOUR/MIN: libera la franja que
   // ahora ocupa la fila del modo facil y la velocidad, y sigue diciendo cual
   // boton mueve cada campo.
-  drawClockBtn(104, 190, "-H");  // hora -
-  drawClockBtn(170, 190, "+H");  // hora +
-  drawClockBtn(252, 190, "-M");  // min -
-  drawClockBtn(318, 190, "+M");  // min +
+  drawClockBtn(104, 170, "-H");  // hora -
+  drawClockBtn(170, 170, "+H");  // hora +
+  drawClockBtn(252, 170, "-M");  // min -
+  drawClockBtn(318, 170, "+M");  // min +
 
   // evolution speed: 1x -> 2x -> 4x -> 8x
   char sp[18];
@@ -4020,39 +4020,42 @@ void renderClock() {
   setCur(LANG_PILL_X + (LANG_PILL_W - textW(lp, 2)) / 2, LANG_PILL_Y + 7);
   printT(lp);
 
-  char fwLine[34];
-  snprintf(fwLine, sizeof(fwLine), "v%s", FW_VERSION);
-  drawStatusLine(334, "FW", fwLine, UI_INK);
-  drawStatusLine(348, "SAVE", pet.saveLoadedFromNvs ? T(S_OK) : T(S_STATUS_NEW), pet.saveLoadedFromNvs ? UI_BAR_OK : UI_BAR_WARN);
-  drawStatusLine(362, "SD", sdReady ? "OK" : "NO", sdReady ? UI_BAR_OK : UI_BAR_WARN);
-  drawStatusLine(376, "SPR", (pmd.loaded || mon.loaded) ? T(S_OK) : T(S_STATUS_FLASH_NO), (pmd.loaded || mon.loaded) ? UI_BAR_OK : UI_BAR_WARN);
-  char petLine[32];
-  if (pet.isEgg()) snprintf(petLine, sizeof(petLine), "%s", T(S_EGG_HDR));
-  else {
-    char level[12];
-    snprintf(level, sizeof(level), T(S_LEVEL_SHORT_FMT), pet.level());
-    snprintf(petLine, sizeof(petLine), "#%d %s", pet.speciesId, level);
-  }
-  drawStatusLine(390, "PET", petLine, UI_INK);
+  // Round-safe info block: two short centred lines instead of the old
+  // left-aligned debug rows (they ran into the bezel at the bottom corners).
+  char info1[40];
+  if (pet.isEgg()) snprintf(info1, sizeof(info1), "EGG");
+  else snprintf(info1, sizeof(info1), "#%03d %s", pet.speciesId, dexName(pet.speciesId));
+  gfx->setTextColor(UI_INK);
+  setSize(1);
+  setCur(CX - textW(info1, 1) / 2, 330);
+  printT(info1);
 
-  gfx->fillRoundRect(96, 404, 110, 40, 13, UI_WHITE);
-  gfx->drawRoundRect(96, 404, 110, 40, 13, UI_INK);
+  char info2[44];
+  snprintf(info2, sizeof(info2), "SAVE %s  SD %s  v%s",
+           pet.saveLoadedFromNvs ? "OK" : "NEW", sdReady ? "OK" : "NO", FW_VERSION);
+  gfx->setTextColor(UI_TRACK);
+  setCur(CX - textW(info2, 1) / 2, 344);
+  printT(info2);
+
+  gfx->fillRoundRect(120, 378, 112, 44, 13, UI_WHITE);
+  gfx->drawRoundRect(120, 378, 112, 44, 13, UI_INK);
   gfx->setTextColor(UI_INK);
   setSize(2);
   const char *hw = HELP_WORD[gLang];
-  setCur(96 + (110 - textW(hw, 2)) / 2, 417);
+  setCur(120 + (112 - textW(hw, 2)) / 2, 391);
   printT(hw);
 
-  gfx->fillRoundRect(230, 404, 156, 40, 13, UI_BAR_OK);
+  const char *ok = T(S_OK);
+  gfx->fillRoundRect(242, 378, 112, 44, 13, UI_BAR_OK);
   gfx->setTextColor(UI_BG_DAY);
   setSize(3);
-  setCur(230 + (156 - 36) / 2, 414);
-  printT(T(S_OK));
+  setCur(242 + (112 - textW(ok, 3)) / 2, 388);
+  printT(ok);
   flushStampedFrame();
 }
 
 void clockTap(int16_t x, int16_t y) {
-  if (y >= 190 && y <= 248) {  // fila de botones +/-
+  if (y >= 170 && y <= 228) {  // fila de botones +/-
     if (x >= 104 && x < 162) clockH = (clockH + 23) % 24;
     else if (x >= 170 && x < 228) clockH = (clockH + 1) % 24;
     else if (x >= 252 && x < 310) clockM = (clockM + 59) % 60;
@@ -4105,8 +4108,8 @@ void clockTap(int16_t x, int16_t y) {
       return;
     }
   }
-  if (y >= 404 && y <= 444 && x >= 96 && x <= 206) { openHelp(); return; }
-  if (y >= 404 && y <= 444 && x >= 230 && x <= 386) { applyClock(); return; }
+  if (y >= 378 && y <= 422 && x >= 120 && x <= 232) { openHelp(); return; }
+  if (y >= 378 && y <= 422 && x >= 242 && x <= 354) { applyClock(); return; }
 }
 
 // llama + numero de racha arriba a la izquierda
@@ -6296,7 +6299,7 @@ void drawIdleFooter() {
   if (pet.isEgg()) snprintf(label, sizeof(label), "EGG");
   else snprintf(label, sizeof(label), "%s  #%03d", dexName(pet.speciesId), pet.speciesId);
   idleTextCentered(label, 416, 1, inkColor());
-  idleTextCentered("SWIPE L: DEX  R: SET  HOLD: SET", 438, 1, inkColor());
+  idleTextCentered("L: DEX  R: SET  HOLD: SET", 430, 1, inkColor());
 }
 
 void drawIdleToast() {

@@ -1,5 +1,35 @@
 # Changelog
 
+## v2.6.0 — 2026-11-12
+
+TamaHub's default line-up becomes five apps: **Clock, IdlePoke, IdleDigi,
+TamaPoke, TamaDigi**. IdleDigi joins IdlePoke as a one-hour-per-form idle fork
+that reuses the existing TamaDigi art and keeps its save separate.
+
+### Added
+
+- **IdleDigi 0.1.0** (`ota_2`): TamaDigi's scene, sprites and settings shell
+  with the care loop removed. One digivolution per hour, a uniformly random
+  branch, and a fresh egg one hour after the final form. Offline progress is
+  capped at 7 days, and the evolution timer alone is scaled by 1/2/4/8×.
+- Main screen matches IdlePoke: large creature-tinted clock at y 116, date at
+  y 80, `EVO MM:SS` and a 300 px progress bar, creature on the horizon at
+  y 400, and `L: DEX  R: SET  HOLD: SET` in the footer. Left swipe opens the
+  Digidex, right swipe or a 3 s hold opens settings.
+- Settings is a single circular-safe page: clock ±, BRT, SPEED, SND, language,
+  two info lines and OK. Save namespace is `idledigi` (`idlsys` for the reset
+  marker), so TamaDigi's save is never touched.
+
+### Changed
+
+- Default layout is now `ota_0` TamaClock, `ota_1` IdlePoke, `ota_2` IdleDigi,
+  `ota_3` TamaPoke, `ota_4` TamaDigi. TamaNaruto and TamaNav are no longer
+  built or offered by the installer.
+- The hub catalogue knows `IdlePoke`/`IdleDigi` and writes `resumeAt` into
+  their own namespaces. Unknown legacy images still launch and show their tag.
+- Installer, size check and the GitHub Actions workflow follow the same five
+  bins and slot offsets.
+
 ## v2.5.3 — 2026-11-12
 
 TamaClock gets its Pokémon and Digimon faces, drawn from the same sprites the

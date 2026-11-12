@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TamaHub — Pokémon · Digimon · Naruto · Clock 멀티앱</title>
+<title>TamaHub — Clock · IdlePoke · IdleDigi · Pokémon · Digimon 멀티앱</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -180,7 +180,7 @@
 <body>
 <main>
   <h1><span class="poke">Tama</span><span class="digi">Hub</span></h1>
-  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Pokémon, Digimon, Naruto, Clock, 내비를 한 기기에, 부팅 메뉴로.</p>
+  <p class="sub">Waveshare ESP32-S3-Touch-AMOLED-1.75 · Clock, IdlePoke, IdleDigi, Pokémon, Digimon 다섯 앱을 한 기기에, 부팅 메뉴로.</p>
   <p class="versions" id="versions">버전 확인 중…</p>
 
   <section>
@@ -189,7 +189,7 @@
       <strong>v2 레이아웃은 한 번만 설치하면 됩니다. 세이브는 지우지 않습니다.</strong><br>
       이전 버전이 이미 설치되어 있다면 아래 <strong>1번 배치 전체 설치</strong>를 한 번만 실행하세요.
       1번에서 고른 앱이 순서대로 모두 기록됩니다.
-      NVS와 otadata 주소가 그대로라 Pokémon / Digimon / Naruto 세이브가 유지됩니다.
+      NVS와 otadata 주소가 그대로라 Pokémon / Digimon / IdlePoke / IdleDigi 세이브가 유지됩니다.
       Erase는 <em>처음 설치</em>하거나 칩을 완전히 초기화할 때만 사용하세요.<br>
       <strong>설치 중에는 USB 케이블을 뽑지 마세요.</strong> 쓰기가 중단되면 부팅이 불가능해질 수 있습니다.
     </div>
@@ -205,8 +205,8 @@
     <div class="slot-picker" id="slot-picker"></div>
     <p class="center-link"><button id="layout-reset" class="linklike" type="button">기본 배치로 되돌리기</button></p>
     <p class="hint" style="color:var(--dim);font-size:13px;margin:8px 0 0">
-      내비게이션(TamaNav)은 폰의 BLE 내비 알림을 받아 화면에 턴바이턴만 그립니다.
-      폰 동반 앱이 없으면 대기 화면에 머물며, 시리얼 `DEMO`로 화면을 확인할 수 있습니다.
+      기본 배치는 Clock · IdlePoke · IdleDigi · TamaPoke · TamaDigi 순서입니다.
+      IdlePoke/IdleDigi는 스프라이트를 TamaPoke/TamaDigi와 공유하지만 세이브는 각자 따로 저장됩니다.
     </p>
 
     <div class="plan">
@@ -292,8 +292,8 @@
        SD 카드를 뽑거나 PC에 꽂을 필요가 없습니다.</p>
     <div class="warn">
       <strong>업로드할 게임이 실행 중이어야 합니다.</strong><br>
-      Pokémon은 <strong>TamaPoke</strong>, Digimon은 <strong>TamaDigi</strong>, Naruto는
-      <strong>TamaNaruto</strong> 화면이 떠 있을 때 연결하세요.
+      Pokémon / IdlePoke는 <strong>TamaPoke</strong>, Digimon / IdleDigi는
+      <strong>TamaDigi</strong> 화면이 떠 있을 때 연결하세요. 두 게임은 같은 SD 스프라이트를 공유합니다.
       TamaHub 화면에서는 SD 업로드가 동작하지 않습니다. 업로드 중에는 전원을 끄거나 USB를 뽑지 마세요.<br>
       <strong>구버전 펌웨어</strong>는 게임 확인 명령이 없어 연결이 거부됩니다.
       먼저 위의 <strong>앱만 업데이트</strong>를 실행하세요.
@@ -954,14 +954,14 @@
   const HUB_OFFSET = 0x20000;
 
   const APPS = [
-    { id: 'poke',   name: 'Pokémon',  letter: 'P', color: '#ff4d4d', bin: 'tamapoke.bin' },
-    { id: 'digi',   name: 'Digimon',  letter: 'D', color: '#4da3ff', bin: 'tamadigi.bin' },
-    { id: 'naruto', name: 'Naruto',   letter: 'N', color: '#b06cff', bin: 'tamanaruto.bin' },
-    { id: 'clock',  name: 'Clock',    letter: 'C', color: '#ffd23f', bin: 'tamaclock.bin' },
-    { id: 'nav',    name: '내비게이션', letter: 'M', color: '#a81fff', bin: 'tamanav.bin' },
+    { id: 'clock',    name: 'Clock',    letter: 'C', color: '#ffd23f', bin: 'tamaclock.bin' },
+    { id: 'idlepoke', name: 'IdlePoke', letter: 'P', color: '#ff8c42', bin: 'idlepoke.bin' },
+    { id: 'idledigi', name: 'IdleDigi', letter: 'D', color: '#42c8ff', bin: 'idledigi.bin' },
+    { id: 'poke',     name: 'Pokémon',  letter: 'P', color: '#ff4d4d', bin: 'tamapoke.bin' },
+    { id: 'digi',     name: 'Digimon',  letter: 'D', color: '#4da3ff', bin: 'tamadigi.bin' },
   ];
-  const DEFAULT_LAYOUT = ['clock', 'poke', 'digi', 'nav', ''];
-  const LAYOUT_KEY = 'tamahub_layout_v1';
+  const DEFAULT_LAYOUT = ['clock', 'idlepoke', 'idledigi', 'poke', 'digi'];
+  const LAYOUT_KEY = 'tamahub_layout_v2';
   const manifestUrls = new Map();
   const binSizes = new Map();
   const binSizePending = new Map();
@@ -1281,12 +1281,12 @@
 
   async function showVersions() {
     const el = $('versions');
-    // The slot numbers (ota_0..ota_3) do not say which app is in them, so the
+    // The slot numbers (ota_0..ota_4) do not say which app is in them, so the
     // label comes from each manifest's own name.  The timestamp defeats the
     // GitHub Pages cache that made a fresh upload look like the old version.
     const files = [
       'manifest-factory.json', 'manifest-ota0.json', 'manifest-ota1.json',
-      'manifest-ota2.json', 'manifest-ota3.json',
+      'manifest-ota2.json', 'manifest-ota3.json', 'manifest-ota4.json',
     ];
     try {
       const rows = await Promise.all(files.map(async (file) => {

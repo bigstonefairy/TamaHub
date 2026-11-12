@@ -34,9 +34,10 @@ _LAYOUT = {
 APP_OFFSETS = {
     "tamahub.bin": ("factory", _LAYOUT["factory"]["offset"]),
     "tamaclock.bin": ("ota_0", _LAYOUT["ota_0"]["offset"]),
-    "tamapoke.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
-    "tamadigi.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
-    "tamanav.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
+    "idlepoke.bin": ("ota_1", _LAYOUT["ota_1"]["offset"]),
+    "idledigi.bin": ("ota_2", _LAYOUT["ota_2"]["offset"]),
+    "tamapoke.bin": ("ota_3", _LAYOUT["ota_3"]["offset"]),
+    "tamadigi.bin": ("ota_4", _LAYOUT["ota_4"]["offset"]),
 }
 
 # The slot picker and the one-click batch install are the whole user flow; fail
@@ -55,15 +56,16 @@ REQUIRED_FILES = (
     "manifest-ota1.json",
     "manifest-ota2.json",
     "manifest-ota3.json",
+    "manifest-ota4.json",
     "index.html",
     "bootloader.bin",
     "partitions.bin",
     "tamahub.bin",
+    "tamaclock.bin",
+    "idlepoke.bin",
+    "idledigi.bin",
     "tamapoke.bin",
     "tamadigi.bin",
-    "tamanaruto.bin",
-    "tamaclock.bin",
-    "tamanav.bin",
 )
 
 # Sprite bundles used by the Web Serial uploader, relative to web/dist.

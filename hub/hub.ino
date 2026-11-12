@@ -63,9 +63,10 @@ static const uint16_t C_CARD = 0x18E3;
 static const uint16_t C_LINE = 0x39E7;
 static const uint16_t C_POKE = 0xF800;   // red
 static const uint16_t C_DIGI = 0x04BF;   // blue
-static const uint16_t C_EXTRA = 0x07E0;  // green
+static const uint16_t C_EXTRA = 0x07E0;  // green (unknown app fallback)
 static const uint16_t C_CLOCK = 0xFFE0;  // yellow
-static const uint16_t C_NAV = 0xA81F;    // purple
+static const uint16_t C_IDLEP = 0xFC60;  // orange, IdlePoke
+static const uint16_t C_IDLED = 0x05FF;  // cyan, IdleDigi
 static const uint16_t C_WARN = 0xFD20;   // orange
 
 // ---------------------------------------------------------------- slots ------
@@ -84,11 +85,11 @@ struct AppInfo {
 };
 
 static const AppInfo APP_INFO[] = {
+    {"TamaClock", "CLOCK", 'C', C_CLOCK, nullptr},
+    {"IdlePoke", "IDLEPOKE", 'P', C_IDLEP, "idlepoke"},
+    {"IdleDigi", "IDLEDIGI", 'D', C_IDLED, "idledigi"},
     {"TamaPoke", "POKEMON", 'P', C_POKE, "tamapoke"},
     {"TamaDigi", "DIGIMON", 'D', C_DIGI, "tamadigi"},
-    {"TamaNaruto", "NARUTO", 'N', C_EXTRA, "tamanaruto"},
-    {"TamaClock", "CLOCK", 'C', C_CLOCK, nullptr},
-    {"TamaNav", "NAV", 'M', C_NAV, nullptr},
 };
 
 struct Slot {

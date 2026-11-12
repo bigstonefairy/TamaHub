@@ -52,19 +52,19 @@ APPS = {
         "name": "TamaDigi",
         "version_macro": "FW_VERSION",
     },
-    "naruto": {
-        "folder": os.path.join("games", "TamaNaruto"),
-        "build": os.path.join("TamaNaruto", "TamaNaruto.ino.bin"),
-        "bin": "tamanaruto.bin",
-        "name": "TamaNaruto",
-        "version_macro": "TAMAHUB_APP_VERSION",
+    "idlepoke": {
+        "folder": os.path.join("games", "IdlePoke"),
+        "build": os.path.join("IdlePoke", "IdlePoke.ino.bin"),
+        "bin": "idlepoke.bin",
+        "name": "IdlePoke",
+        "version_macro": "FW_VERSION",
     },
-    "nav": {
-        "folder": os.path.join("apps", "TamaNav"),
-        "build": os.path.join("TamaNav", "TamaNav.ino.bin"),
-        "bin": "tamanav.bin",
-        "name": "TamaNav",
-        "version_macro": "TAMAHUB_APP_VERSION",
+    "idledigi": {
+        "folder": os.path.join("games", "IdleDigi"),
+        "build": os.path.join("IdleDigi", "IdleDigi.ino.bin"),
+        "bin": "idledigi.bin",
+        "name": "IdleDigi",
+        "version_macro": "FW_VERSION",
     },
 }
 
@@ -73,7 +73,7 @@ APP_SLOTS = ("ota_0", "ota_1", "ota_2", "ota_3", "ota_4")
 # First-install plan and the static per-slot update manifests.  Keep in sync
 # with DEFAULT_LAYOUT in web/index.html; None leaves the slot empty.  The web
 # picker can still assign any app to any slot.
-DEFAULT_LAYOUT = ("clock", "poke", "digi", "nav", None)
+DEFAULT_LAYOUT = ("clock", "idlepoke", "idledigi", "poke", "digi")
 
 # Sprite packs served next to the installer for the Web Serial SD uploader.
 # They are the upstream bundles, copied into the repository under web/sd/.

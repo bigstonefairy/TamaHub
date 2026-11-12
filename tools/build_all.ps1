@@ -119,27 +119,22 @@ if (-not $SkipHub) {
 }
 
 if (-not $SkipGames) {
-    foreach ($game in @("TamaPoke", "TamaDigi", "TamaNaruto")) {
+    foreach ($game in @("IdlePoke", "IdleDigi", "TamaPoke", "TamaDigi")) {
         Write-Host "`n=== $game (ota slot, app3M scheme) ===" -ForegroundColor Cyan
         & $cli compile --fqbn $fqbnGame --build-path (Join-Path $BuildDir $game) (Join-Path $SketchRoot "games\$game")
         if ($LASTEXITCODE -ne 0) { Fail "$game build failed" }
     }
 
-    # Apps live under apps/ so they are not confused with the three games.
     Write-Host "`n=== TamaClock (ota slot, app3M scheme) ===" -ForegroundColor Cyan
     & $cli compile --fqbn $fqbnGame --build-path (Join-Path $BuildDir "TamaClock") (Join-Path $SketchRoot "apps\TamaClock")
     if ($LASTEXITCODE -ne 0) { Fail "TamaClock build failed" }
-
-    Write-Host "`n=== TamaNav (ota slot, app3M scheme) ===" -ForegroundColor Cyan
-    & $cli compile --fqbn $fqbnGame --build-path (Join-Path $BuildDir "TamaNav") (Join-Path $SketchRoot "apps\TamaNav")
-    if ($LASTEXITCODE -ne 0) { Fail "TamaNav build failed" }
 }
 
 $binArgs = @()
 if (Test-Path (Join-Path $BuildDir "hub\hub.ino.bin")) {
     $binArgs += "--bin", "factory=$(Join-Path $BuildDir 'hub\hub.ino.bin')"
 }
-foreach ($pair in @(@("TamaPoke", "ota_0"), @("TamaDigi", "ota_1"), @("TamaNaruto", "ota_2"), @("TamaClock", "ota_3"), @("TamaNav", "ota_4"))) {
+foreach ($pair in @(@("TamaClock", "ota_0"), @("IdlePoke", "ota_1"), @("IdleDigi", "ota_2"), @("TamaPoke", "ota_3"), @("TamaDigi", "ota_4"))) {
     $bin = Join-Path $BuildDir "$($pair[0])\$($pair[0]).ino.bin"
     if (Test-Path $bin) { $binArgs += "--bin", "$($pair[1])=$bin" }
 }

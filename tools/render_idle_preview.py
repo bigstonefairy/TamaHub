@@ -135,15 +135,15 @@ def draw_scene(img: Image.Image, draw: ImageDraw.ImageDraw, night: bool = False,
         draw.rectangle([0, y, W, y + 7], fill=rgb565(lerp565(top, bot, y, HORIZON)))
 
     if night:
-        draw.ellipse([398 - 22, 50 - 22, 398 + 22, 50 + 22],
+        draw.ellipse([370 - 18, 70 - 18, 370 + 18, 70 + 18],
                      fill=rgb565(c565(0xE8, 0xEE, 0xF5)))
-        draw.ellipse([407 - 20, 44 - 20, 407 + 20, 44 + 20],
+        draw.ellipse([378 - 16, 64 - 16, 378 + 16, 64 + 16],
                      fill=rgb565(lerp565(top, bot, 78, HORIZON)))
         for sx, sy in ((120, 140), (330, 120), (370, 210), (95, 230),
                        (280, 90), (160, 95)):
             draw.rectangle([sx, sy, sx + 3, sy + 3], fill=rgb565(UI_WHITE))
     else:
-        draw.ellipse([400 - 24, 54 - 24, 400 + 24, 54 + 24],
+        draw.ellipse([372 - 18, 74 - 18, 372 + 18, 74 + 18],
                      fill=rgb565(c565(0xFF, 0xE7, 0x9F)))
         for k in range(2):
             cx = (now // 50 + k * 250) % 560 - 40
@@ -195,7 +195,7 @@ def draw_hud(img: Image.Image, draw: ImageDraw.ImageDraw, font: bytes,
 
     label = f"{name}  #{dex:03d}"
     text_center(draw, font, label, LABEL_Y, 1, ink)
-    text_center(draw, font, "SWIPE L: DEX  R: SET  HOLD: SET", HINT_Y, 1, ink)
+    text_center(draw, font, "L: DEX  R: SET  HOLD: SET", 430, 1, ink)
 
     if toast:
         tw = len(toast) * 6 + 28
@@ -206,14 +206,29 @@ def draw_hud(img: Image.Image, draw: ImageDraw.ImageDraw, font: bytes,
 
 def main_scene(font: bytes, pal: list[int], act: Act, idle: Act, name: str,
                dex: int, accent: int, frame: int, remain: str, permille: int,
-               night: bool = False, toast: str = "") -> Image.Image:
+               night: bool = False, toast: str = "", round_mask: bool = False) -> Image.Image:
     img = Image.new("RGB", (W, H), rgb565(UI_BG_DAY))
     draw = ImageDraw.Draw(img)
     draw_scene(img, draw, night=night, now=frame * 120)
     draw_hud(img, draw, font, name, dex, accent, remain, permille,
              night=night, toast=toast)
     draw_act(img, pal, act, idle, frame, CX)
+    if round_mask:
+        img = apply_round_mask(img)
     return img
+
+
+def apply_round_mask(img: Image.Image, radius: int = 231) -> Image.Image:
+    """Cut the frame to the round AMOLED area and keep the rest black."""
+    mask = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(mask).ellipse([CX - radius, CX - radius,
+                                  CX + radius, CX + radius], fill=255)
+    out = Image.new("RGB", (W, H), (0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    ImageDraw.Draw(out).ellipse(
+        [CX - radius, CX - radius, CX + radius, CX + radius],
+        outline=rgb565(0x39E7), width=1)
+    return out
 
 
 # ---------------------------------------------------------------- settings ---
@@ -229,49 +244,61 @@ def text_center_x(draw, font, s: str, x: int, y: int, size: int, color: int) -> 
     draw_text(draw, font, s, x, y, size, color)
 
 
-def settings_scene(font: bytes, speed: int, armed: bool = False) -> Image.Image:
+def settings_scene(font: bytes, speed: int, armed: bool = False,
+                   round_mask: bool = False, digi: bool = False,
+                   dex: int = 25, name: str = "PIKACHU") -> Image.Image:
     img = Image.new("RGB", (W, H), rgb565(UI_BG_DAY))
     draw = ImageDraw.Draw(img)
-    text_center(draw, font, "SETTINGS", 44, 3, UI_INK)
-    draw_text(draw, font, "12:34", CX - 105, 108, 7, UI_INK)
+    text_center(draw, font, "SETTINGS", 40, 3, UI_INK)
+    draw_text(draw, font, "12:34", CX - 105, 96, 7, UI_INK)
 
     for bx, lbl in ((104, "-H"), (170, "+H"), (252, "-M"), (318, "+M")):
-        draw.rounded_rectangle([bx, 190, bx + 58, 190 + 58], radius=12,
+        draw.rounded_rectangle([bx, 170, bx + 58, 170 + 58], radius=12,
                                fill=rgb565(UI_WHITE), outline=rgb565(UI_INK), width=1)
-        draw_text(draw, font, lbl, bx + (58 - len(lbl) * 6 * 4) // 2, 190 + 15,
+        draw_text(draw, font, lbl, bx + (58 - len(lbl) * 6 * 4) // 2, 185,
                   4, UI_INK)
 
     # evolution speed: 1x -> 2x -> 4x -> 8x
     sp = f"SPEED {speed}x"
-    pill(draw, font, 236, 256, 196, 30, sp,
+    pill(draw, font, 236, 244, 196, 30, sp,
          UI_BAR_WARN if speed > 1 else UI_WHITE,
          UI_BG_DAY if speed > 1 else UI_INK)
 
+    if digi:
+        pill(draw, font, 24, 244, 200, 30, "BRT 7", UI_WHITE, UI_INK)
+        pill(draw, font, 24, 284, 116, 30, "SND ON", UI_BAR_OK, UI_BG_DAY)
+        pill(draw, font, 336, 284, 96, 30, "KO >", UI_WHITE, UI_INK)
+        text_center(draw, font, f"#{dex:03d} {name}", 330, 1, UI_INK)
+        text_center(draw, font, "SAVE OK  SD OK  v0.1.0", 344, 1, UI_TRACK)
+        draw.rounded_rectangle([242, 378, 242 + 112, 378 + 44], radius=13,
+                               fill=rgb565(UI_BAR_OK))
+        text_center_x(draw, font, "OK", 242 + (112 - 36) // 2, 388, 3, UI_BG_DAY)
+        if round_mask:
+            img = apply_round_mask(img)
+        return img
+
     # release arms on the first tap
     rl = "RELEASE?" if armed else "RELEASE"
-    pill(draw, font, 24, 256, 200, 30, rl,
+    pill(draw, font, 24, 244, 200, 30, rl,
          UI_BAR_BAD if armed else UI_WHITE,
          UI_WHITE if armed else UI_BAR_BAD)
 
     # sound / power save / language
-    pill(draw, font, 24, 296, 116, 30, "SND ALL", UI_BAR_OK, UI_BG_DAY)
-    pill(draw, font, 150, 296, 176, 30, "SAVE OFF", UI_WHITE, UI_INK)
-    pill(draw, font, 336, 296, 96, 30, "EN >", UI_WHITE, UI_INK)
+    pill(draw, font, 24, 284, 116, 30, "SND ALL", UI_BAR_OK, UI_BG_DAY)
+    pill(draw, font, 150, 284, 176, 30, "SAVE OFF", UI_WHITE, UI_INK)
+    pill(draw, font, 336, 284, 96, 30, "EN >", UI_WHITE, UI_INK)
 
-    for y, lab, val, col in ((334, "FW", "v0.1.0", UI_INK),
-                             (348, "SAVE", "OK", UI_BAR_OK),
-                             (362, "SD", "OK", UI_BAR_OK),
-                             (376, "SPR", "OK", UI_BAR_OK),
-                             (390, "PET", "#025  LV 12", UI_INK)):
-        draw_text(draw, font, lab, 94, y, 1, UI_TRACK)
-        draw_text(draw, font, val, 172, y, 1, col)
+    text_center(draw, font, "#025 PIKACHU", 330, 1, UI_INK)
+    text_center(draw, font, "SAVE OK  SD OK  v0.1.0", 344, 1, UI_TRACK)
 
-    draw.rounded_rectangle([96, 404, 96 + 110, 404 + 40], radius=13,
+    draw.rounded_rectangle([120, 378, 120 + 112, 378 + 44], radius=13,
                            fill=rgb565(UI_WHITE), outline=rgb565(UI_INK), width=1)
-    text_center_x(draw, font, "HELP", 96 + (110 - 24) // 2, 417, 2, UI_INK)
-    draw.rounded_rectangle([230, 404, 230 + 156, 404 + 40], radius=13,
+    text_center_x(draw, font, "HELP", 120 + (112 - 24) // 2, 391, 2, UI_INK)
+    draw.rounded_rectangle([242, 378, 242 + 112, 378 + 44], radius=13,
                            fill=rgb565(UI_BAR_OK))
-    text_center_x(draw, font, "OK", 230 + (156 - 36) // 2, 414, 3, UI_BG_DAY)
+    text_center_x(draw, font, "OK", 242 + (112 - 36) // 2, 388, 3, UI_BG_DAY)
+    if round_mask:
+        img = apply_round_mask(img)
     return img
 
 
@@ -281,6 +308,12 @@ def main() -> int:
     ap.add_argument("--out", default=str(ROOT / "docs" / "preview"))
     ap.add_argument("--font", default=str(FONT_DEFAULT))
     ap.add_argument("--pokemon", type=int, default=25)  # Pikachu
+    ap.add_argument("--pak", default="web/sd/tamapoke/sprites.pak")
+    ap.add_argument("--dex", type=int, default=None,
+                    help="override the sprite number (e.g. 3 = Agumon)")
+    ap.add_argument("--name", default=None, help="label shown in the HUD")
+    ap.add_argument("--prefix", default="idlepoke",
+                    help="output file prefix, e.g. idledigi")
     ap.add_argument("--frames", type=int, default=6)
     args = ap.parse_args()
 
@@ -291,40 +324,45 @@ def main() -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    poke_pak = read_pak(ROOT / "web/sd/tamapoke/sprites.pak")
-    key = f"mons/p{args.pokemon:03d}.bin"
+    dex = args.dex if args.dex is not None else args.pokemon
+    poke_pak = read_pak(ROOT / args.pak)
+    key = f"mons/p{dex:03d}.bin"
     if key not in poke_pak:
-        raise SystemExit(f"{key} missing from pack")
+        raise SystemExit(f"{key} missing from {args.pak}")
     pal, acts = parse_tpk2(poke_pak[key])
     act = idle_act(acts)
     idle = acts[0] if acts and acts[0] else act
     acc = accent_color(pal, act)
-    name = "PIKACHU"
+    name = args.name or ("PIKACHU" if dex == 25 else f"MON {dex:03d}")
+    pre = args.prefix
 
-    still = main_scene(font, pal, act, idle, name, args.pokemon, acc, 0,
-                       "42:17", 412)
-    still.save(out / "idlepoke-main.png")
+    still = main_scene(font, pal, act, idle, name, dex, acc, 0,
+                       "42:17", 412, round_mask=True)
+    still.save(out / f"{pre}-main.png")
 
-    night = main_scene(font, pal, act, idle, name, args.pokemon, acc, 0,
-                       "42:17", 412, night=True)
-    night.save(out / "idlepoke-night.png")
+    night = main_scene(font, pal, act, idle, name, dex, acc, 0,
+                       "42:17", 412, night=True, round_mask=True)
+    night.save(out / f"{pre}-night.png")
 
-    toast = main_scene(font, pal, act, idle, name, args.pokemon, acc, 0,
-                       "59:59", 997, toast="EVOLVED!")
-    toast.save(out / "idlepoke-evolve.png")
+    toast = main_scene(font, pal, act, idle, name, dex, acc, 0,
+                       "59:59", 997, toast="EVOLVED!", round_mask=True)
+    toast.save(out / f"{pre}-evolve.png")
 
     n = min(args.frames, act.frames)
     frames = [
-        main_scene(font, pal, act, idle, name, args.pokemon, acc, i,
-                   "42:17", 412)
+        main_scene(font, pal, act, idle, name, dex, acc, i,
+                   "42:17", 412, round_mask=True)
         for i in range(n)
     ]
-    save_gif(frames, act.ms[:n], out / "idlepoke-main.gif")
+    save_gif(frames, act.ms[:n], out / f"{pre}-main.gif")
 
-    settings_scene(font, 2).save(out / "idlepoke-settings.png")
-    settings_scene(font, 8, armed=True).save(out / "idlepoke-settings-armed.png")
+    is_digi = pre == "idledigi"
+    settings_scene(font, 2, round_mask=True, digi=is_digi, dex=dex,
+                   name=name).save(out / f"{pre}-settings.png")
+    settings_scene(font, 8, armed=True, round_mask=True, digi=is_digi,
+                   dex=dex, name=name).save(out / f"{pre}-settings-armed.png")
 
-    print(f"PIKACHU: {act.w}x{act.h}, {act.frames} idle frames, "
+    print(f"{name}: {act.w}x{act.h}, {act.frames} idle frames, "
           f"scale {idle_scale(act, idle)}, accent #{acc:04X}")
     print(f"wrote {out}")
     return 0

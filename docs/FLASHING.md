@@ -49,7 +49,7 @@ GitHub Pages를 만든 뒤에는 `https://<사용자>.github.io/<저장소>/` �
 1. Arduino IDE, 시리얼 모니터, PuTTY 등 **COM 포트를 잡고 있는 프로그램을 모두 닫습니다.**
 2. 보드를 USB로 연결합니다.
 3. **슬롯 배치**에서 앱을 원하는 순서로 고릅니다. 기본값은
-   `ota_0` Clock / `ota_1` Poke / `ota_2` Digi / `ota_3` 내비 / `ota_4` 비움.
+   `ota_0` Clock / `ota_1` IdlePoke / `ota_2` IdleDigi / `ota_3` Poke / `ota_4` Digi.
 4. **설치 계획**을 확인하고 **일괄 설치 시작**을 누릅니다. 시리얼 포트를 **한 번만**
    고르면 부트로더·v2 파티션 테이블·허브·선택한 앱이 자동으로 순서대로 기록됩니다
    (**Erase 없음, NVS 세이브 유지**). 앱마다 버튼을 다시 누를 필요가 없습니다.
@@ -147,10 +147,10 @@ NVS와 다른 슬롯은 건드리지 않고 해당 앱만 다시 씁니다. 아�
 | partition table | `0x8000` | `build\hub\hub.ino.partitions.bin` |
 | TamaHub | `0x20000` | `build\hub\hub.ino.bin` |
 | 슬롯 1 (`ota_0`) | `0x220000` | `build\TamaClock\TamaClock.ino.bin` |
-| 슬롯 2 (`ota_1`) | `0x420000` | `build\TamaPoke\TamaPoke.ino.bin` |
-| 슬롯 3 (`ota_2`) | `0x620000` | `build\TamaDigi\TamaDigi.ino.bin` |
-| 슬롯 4 (`ota_3`) | `0x820000` | `build\TamaNav\TamaNav.ino.bin` |
-| 슬롯 5 (`ota_4`) | `0xA20000` | (비움 / Naruto 등 원하는 앱) |
+| 슬롯 2 (`ota_1`) | `0x420000` | `build\IdlePoke\IdlePoke.ino.bin` |
+| 슬롯 3 (`ota_2`) | `0x620000` | `build\IdleDigi\IdleDigi.ino.bin` |
+| 슬롯 4 (`ota_3`) | `0x820000` | `build\TamaPoke\TamaPoke.ino.bin` |
+| 슬롯 5 (`ota_4`) | `0xA20000` | `build\TamaDigi\TamaDigi.ino.bin` |
 
 **절대 쓰지 않는 것**
 
