@@ -1,0 +1,1763 @@
+#include "pet.h"
+#include "dex.h"
+#include "audio.h"
+#include "dayphase.h"
+
+namespace {
+constexpr uint32_t BACKUP_MAGIC = 0x314B4254UL; // TBK1
+constexpr uint16_t BACKUP_VERSION = 2;
+struct __attribute__((packed)) PetBackup {
+  uint32_t magic; uint16_t version, length; uint32_t checksum;
+  uint8_t fullness, joy, energy, hygiene, poops, weight, geneAtk, geneDef, geneSpe, trAtk, trDef, trSpe;
+  uint8_t berryKnown, shiny, eggShiny, starterPick, eggTaps, careMistakes, lastEnd, bond, collectionFrame, dailyGoalDone, expeditionRewardItem, expeditionSite, hoennSealMask, stepDailyRewardMask, stepMilestoneMask, pendingStepRewardMask, shakeCountToday, walkJoyToday, walkJoyHour, walkBondToday, evoDeclinedLv;
+  int16_t speciesId, eggTarget;
+  uint32_t ageMinutes, lastSeenEpoch, lastCareDay, lastPetInteractMinute, dailyGoalDay, expeditionEndEpoch, stepDay, stepsToday, stepsTotal, lastMorningDay, shakeDay, walkDay, walkHour, evoDeclinedAge;
+  uint16_t streak, bestStreak, medals, totalMedals, lastMilestone, gameHi, strHi, catchHi, memoHi, cleanHi, typeHi, battleWins, battleLosses, battleStreak, bestBattleStreak, dexRewardMask;
+  uint8_t dailyGoalType[DAILY_GOAL_COUNT], dailyGoalProgress[DAILY_GOAL_COUNT], itemCounts[EXP_ITEM_COUNT];
+  uint8_t dexReg[DEX_BITMAP_BYTES], dexShinyReg[DEX_BITMAP_BYTES], dexCaught[DEX_BITMAP_BYTES]; char nick[12];
+  uint8_t expeditionMinutes;
+  uint16_t expeditionSteps;
+  uint8_t expeditionBonusItem;
+};
+static_assert(sizeof(PetBackup) <= Pet::BACKUP_MAX_BYTES, "backup buffer too small");
+uint32_t backupChecksum(const uint8_t *data, size_t length) { uint32_t v=2166136261UL; for(size_t i=0;i<length;i++) v=(v^data[i])*16777619UL; return v; }
+}
+
+static void loadDexBitmap(Preferences &prefs, const char *key, uint8_t *dst, size_t dstLen) {
+  memset(dst, 0, dstLen);
+  size_t stored = prefs.getBytesLength(key);
+  if (!stored) return;
+  size_t copyLen = stored < dstLen ? stored : dstLen;
+  prefs.getBytes(key, dst, copyLen);
+}
+
+static const uint32_t STEP_DAILY_GOALS[STEP_DAILY_GOAL_COUNT] = {
+  500UL, 2000UL, 5000UL
+};
+static const uint32_t STEP_TOTAL_GOALS[] = {
+  10000UL, 50000UL, 100000UL, 250000UL
+};
+
+static uint8_t stepRewardBit(uint8_t index) {
+  return index < STEP_DAILY_GOAL_COUNT ? (uint8_t)(1U << index) : 0;
+}
+
+static ExpeditionItem stepRewardItemFor(uint8_t index) {
+  switch (index) {
+    case 0: return EXP_ITEM_SNACK;
+    case 1: return EXP_ITEM_ENERGY;
+    case 2: return EXP_ITEM_TRAIN;
+    default: return EXP_ITEM_NONE;
+  }
+}
+
+void Pet::begin() {
+  prefs.begin("idlepoke", false);
+  bool hadSave = prefs.getBool("init", false);
+  saveLoadedFromNvs = hadSave;
+  saveCreatedThisBoot = !hadSave;
+  if (!hadSave) {
+    prefs.putBool("init", true);
+    newEgg();
+    starterPick = false;  // idle fork: no region/starter quiz, just hatch
+    save();
+  } else {
+    load();
+  }
+  ensureStepDay();
+  lastTick = millis();
+}
+
+void Pet::newEgg() {
+  ceremony = CER_NONE;
+  ceremonyUntil = 0;
+  neglectTicks = 0;
+  weight = 0;
+  speciesId = -1;
+  prevSpeciesId = -1;
+  eggTarget = pickEggSpecies();  // especie oculta segun rareza y pokedex
+  starterPick = (registeredCount() == 0);  // primera partida: el jugador elige inicial
+  // sorteo shiny: 1/48 base, mejor con despedida y con racha/vinculo altos
+  int shinyBase = (lastEnd == CER_FAREWELL ? 24 : 48) - careBonus();
+  if (shinyBase < 8) shinyBase = 8;
+  eggShiny = (random(shinyBase) == 0);
+  eggTaps = 0;
+  fullness = 80;
+  joy = 80;
+  energy = 80;
+  hygiene = 100;
+  poops = 0;
+  ageMinutes = 0;
+  lastPetInteractMinute = 0;
+  evoDeclinedLv = 0;
+  evoDeclinedAge = 0;
+  farDeclinedAge = 0;
+  careMistakes = 0;
+  mistakeCooldown = 0;
+  sleeping = false;
+  save();
+}
+
+// progresion offline: el tiempo paso aunque estuviera apagado, pero con
+// piedad — las barras bajan con suelo en 15 (vuelve hambriento, no muerto),
+// sin descuidos ni escapadas en ausencia
+static uint8_t dropTo(uint8_t v, uint8_t d, uint8_t fl) {
+  if (v <= fl) return v;
+  return (v - fl > d) ? v - d : fl;
+}
+
+void Pet::setClock(uint32_t nowEpoch) {
+  lastSeenEpoch = nowEpoch;
+  ensureStepDay();
+  if (nowEpoch) save();  // persiste ya: un corte de luz no pierde la referencia
+}
+
+void Pet::setGameSpeed(uint8_t speed) {
+  gameSpeed = speed < 1 ? 1 : speed > 3 ? 3 : speed;
+  // El while de update() compara contra lastTick. Al cambiar de marcha hay
+  // que mover la base o el primer tick llega con el retraso de la velocidad
+  // anterior (y a 3x se notaria como una rafaga de tres ticks).
+  lastTick = millis();
+}
+
+void Pet::topUpCare() {
+  fullness = 100;
+  joy = 100;
+  energy = 100;
+  hygiene = 100;
+  poops = 0;
+}
+
+void Pet::syncClock(uint32_t nowEpoch) {
+  uint32_t seen = prefs.getUInt("seen", 0);
+  // Multi-game: TamaHub writes `resumeAt` right before launching us.
+  uint32_t resumeAt = prefs.getUInt("resumeAt", 0);
+  if (resumeAt) {
+    if (resumeAt > seen) seen = resumeAt;
+    prefs.remove("resumeAt");
+  }
+  lastSeenEpoch = nowEpoch;
+  ensureStepDay();
+  if (nowEpoch == 0) return;
+  uint32_t mins = (seen && nowEpoch > seen) ? (nowEpoch - seen) / 60 : 0;
+  if (mins < 2 || ceremony != CER_NONE) {
+    save();  // primera vez o sin tiempo que aplicar: solo persistir la hora
+    return;
+  }
+  if (mins > 7UL * 24 * 60) mins = 7UL * 24 * 60;  // idle cap: one week
+
+  // The idle fork has no care pressure: offline time only ages the creature
+  // (and hatches an egg).  Evolution itself is handled by idle.cpp, which has
+  // its own accumulator and random branch picker.
+  for (uint32_t i = 0; i < mins; i++) {
+    ageMinutes++;
+    if (isEgg() && ageMinutes >= 3) hatch();
+  }
+  topUpCare();
+  sleeping = false;
+  Serial.printf("offline: %u min applied (idle)\n", mins);
+  save();
+}
+
+bool Pet::update(uint32_t nowMs) {
+  ensureStepDay();
+  // fin de ceremonia: la criatura se va y queda un huevo nuevo
+  if (ceremony != CER_NONE && deadlineReached(millis(), ceremonyUntil)) {
+    newEgg();
+    return true;
+  }
+  bool changed = false;
+  // 2x/3x: el mismo tick de juego, con menos milisegundos reales entre uno y
+  // otro. lastTick se reinicia al cambiar la velocidad (setGameSpeed).
+  const uint32_t step = PET_TICK_MS / (gameSpeed ? gameSpeed : 1);
+  while (nowMs - lastTick >= step) {
+    lastTick += step;
+    tick();
+    changed = true;
+  }
+  return changed;
+}
+
+void Pet::tick() {
+  if (ceremony != CER_NONE) return;  // el tiempo se detiene en la despedida
+  ageMinutes++;
+
+  if (isEgg()) {
+    if (ageMinutes >= 3) hatch();  // si no lo tocas, eclosiona solo a los 3 min
+    return;
+  }
+
+  // Idle fork: the creature is never hungry, dirty or sad.  Keeping the bars
+  // full means the old care code below can never block evolution or punish a
+  // player who is only watching the screen.
+  topUpCare();
+  sleeping = false;
+  checkMedals();
+  if (++ticksSinceSave >= 5) pendingSave = true;
+}
+
+// vuelca el guardado periodico pendiente (lo llama el loop en un momento sin
+// animacion para que el paron de la escritura a flash no se vea)
+void Pet::flushSave() {
+  if (pendingSave) save();
+}
+
+// Fuerza el guardado aunque no haya nada pendiente (cambio de juego).
+void Pet::saveNow() { save(); }
+
+size_t Pet::exportBackup(uint8_t *out, size_t capacity) const {
+  if (!out || capacity < sizeof(PetBackup)) return 0;
+  PetBackup b = {}; b.magic=BACKUP_MAGIC; b.version=BACKUP_VERSION; b.length=sizeof(b);
+  b.fullness=fullness;b.joy=joy;b.energy=energy;b.hygiene=hygiene;b.poops=poops;b.weight=weight;b.geneAtk=geneAtk;b.geneDef=geneDef;b.geneSpe=geneSpe;b.trAtk=trAtk;b.trDef=trDef;b.trSpe=trSpe;
+  b.berryKnown=berryKnown;b.shiny=shiny;b.eggShiny=eggShiny;b.starterPick=starterPick;b.eggTaps=eggTaps;b.careMistakes=careMistakes;b.lastEnd=lastEnd;b.bond=bond;b.collectionFrame=collectionFrame;b.dailyGoalDone=dailyGoalDone;b.expeditionRewardItem=expeditionRewardItem;b.expeditionSite=expeditionSite;b.hoennSealMask=hoennSealMask;b.stepDailyRewardMask=stepDailyRewardMask;b.stepMilestoneMask=stepMilestoneMask;b.pendingStepRewardMask=pendingStepRewardMask;b.shakeCountToday=shakeCountToday;b.walkJoyToday=walkJoyToday;b.walkJoyHour=walkJoyHour;b.walkBondToday=walkBondToday;b.evoDeclinedLv=evoDeclinedLv;
+  b.speciesId=speciesId;b.eggTarget=eggTarget;b.ageMinutes=ageMinutes;b.lastSeenEpoch=lastSeenEpoch;b.lastCareDay=lastCareDay;b.lastPetInteractMinute=lastPetInteractMinute;b.dailyGoalDay=dailyGoalDay;b.expeditionEndEpoch=expeditionEndEpoch;b.stepDay=stepDay;b.stepsToday=stepsToday;b.stepsTotal=stepsTotal;b.lastMorningDay=lastMorningDay;b.shakeDay=shakeDay;b.walkDay=walkDay;b.walkHour=walkHour;b.evoDeclinedAge=evoDeclinedAge;
+  b.streak=streak;b.bestStreak=bestStreak;b.medals=medals;b.totalMedals=totalMedals;b.lastMilestone=lastMilestone;b.gameHi=gameHi;b.strHi=strHi;b.catchHi=catchHi;b.memoHi=memoHi;b.cleanHi=cleanHi;b.typeHi=typeHi;b.battleWins=battleWins;b.battleLosses=battleLosses;b.battleStreak=battleStreak;b.bestBattleStreak=bestBattleStreak;b.dexRewardMask=dexRewardMask;
+  memcpy(b.dailyGoalType,dailyGoalType,sizeof(b.dailyGoalType));memcpy(b.dailyGoalProgress,dailyGoalProgress,sizeof(b.dailyGoalProgress));memcpy(b.itemCounts,itemCounts,sizeof(b.itemCounts));memcpy(b.dexReg,dexReg,sizeof(b.dexReg));memcpy(b.dexShinyReg,dexShinyReg,sizeof(b.dexShinyReg));memcpy(b.dexCaught,dexCaught,sizeof(b.dexCaught));memcpy(b.nick,nick,sizeof(b.nick));
+  b.expeditionMinutes=expeditionMinutes; b.expeditionSteps=expeditionSteps; b.expeditionBonusItem=expeditionBonusItem;
+  b.checksum=0;b.checksum=backupChecksum(reinterpret_cast<const uint8_t*>(&b),sizeof(b));memcpy(out,&b,sizeof(b));return sizeof(b);
+}
+
+bool Pet::importBackup(const uint8_t *data, size_t length) {
+  constexpr size_t oldSize = sizeof(PetBackup) - 4;
+  if (!data || (length != sizeof(PetBackup) && length != oldSize && length != oldSize - 2)) return false;
+  uint8_t raw[sizeof(PetBackup)] = {}; memcpy(raw, data, length);
+  uint32_t sum; memcpy(&sum, raw + 8, 4); memset(raw + 8, 0, 4);
+  uint16_t version, storedLength; memcpy(&version, raw + 4, 2); memcpy(&storedLength, raw + 6, 2);
+  if (storedLength != length || sum != backupChecksum(raw, length) ||
+      (version == 2 ? length != sizeof(PetBackup) : version != 1 || length == sizeof(PetBackup))) return false;
+  PetBackup b = {};
+  if (length == oldSize - 2) {
+    const size_t split = offsetof(PetBackup, expeditionSite);
+    memcpy(&b, raw, split);
+    memcpy(reinterpret_cast<uint8_t*>(&b) + split + 2, raw + split, length - split);
+    b.expeditionSite = EXP_SITE_NONE;
+  } else memcpy(&b, raw, length);
+  if (version == 1) { b.expeditionMinutes=0; b.expeditionSteps=0; b.expeditionBonusItem=EXP_ITEM_NONE; }
+  b.version=BACKUP_VERSION; b.length=sizeof(b); b.checksum=0;
+  sum=backupChecksum(reinterpret_cast<const uint8_t*>(&b),sizeof(b));
+  if (b.expeditionMinutes && (!expeditionStepGoal(b.expeditionMinutes) || b.expeditionBonusItem >= EXP_ITEM_COUNT || b.expeditionSteps > expeditionStepGoal(b.expeditionMinutes))) return false;
+  if (b.magic!=BACKUP_MAGIC || b.version!=BACKUP_VERSION || b.length!=sizeof(b) || sum!=backupChecksum(reinterpret_cast<const uint8_t*>(&b),sizeof(b)) || b.speciesId < -1 || b.speciesId > DEX_COUNT || b.eggTarget < 1 || b.eggTarget > DEX_COUNT || (b.expeditionRewardItem != EXP_ITEM_NONE && b.expeditionRewardItem >= EXP_ITEM_COUNT) || (b.expeditionSite != EXP_SITE_NONE && b.expeditionSite >= EXPEDITION_SITE_COUNT)) return false;
+  expeditionMinutes=b.expeditionMinutes; expeditionSteps=b.expeditionSteps; expeditionBonusItem=b.expeditionBonusItem;
+  prefs.putBool("init", true);
+  fullness=b.fullness;joy=b.joy;energy=b.energy;hygiene=b.hygiene;poops=b.poops;weight=b.weight;geneAtk=b.geneAtk;geneDef=b.geneDef;geneSpe=b.geneSpe;trAtk=b.trAtk;trDef=b.trDef;trSpe=b.trSpe;berryKnown=b.berryKnown;shiny=b.shiny;eggShiny=b.eggShiny;starterPick=b.starterPick;eggTaps=b.eggTaps;careMistakes=b.careMistakes;lastEnd=b.lastEnd;bond=b.bond;collectionFrame=b.collectionFrame;dailyGoalDone=b.dailyGoalDone;expeditionRewardItem=b.expeditionRewardItem;expeditionSite=b.expeditionSite;hoennSealMask=b.hoennSealMask & 7;stepDailyRewardMask=b.stepDailyRewardMask;stepMilestoneMask=b.stepMilestoneMask;pendingStepRewardMask=b.pendingStepRewardMask;shakeCountToday=b.shakeCountToday;walkJoyToday=b.walkJoyToday;walkJoyHour=b.walkJoyHour;walkBondToday=b.walkBondToday;evoDeclinedLv=b.evoDeclinedLv;
+  speciesId=b.speciesId;eggTarget=b.eggTarget;ageMinutes=b.ageMinutes;lastSeenEpoch=b.lastSeenEpoch;lastCareDay=b.lastCareDay;lastPetInteractMinute=b.lastPetInteractMinute;dailyGoalDay=b.dailyGoalDay;expeditionEndEpoch=b.expeditionEndEpoch;stepDay=b.stepDay;stepsToday=b.stepsToday;stepsTotal=b.stepsTotal;lastMorningDay=b.lastMorningDay;shakeDay=b.shakeDay;walkDay=b.walkDay;walkHour=b.walkHour;evoDeclinedAge=b.evoDeclinedAge;streak=b.streak;bestStreak=b.bestStreak;medals=b.medals;totalMedals=b.totalMedals;lastMilestone=b.lastMilestone;gameHi=b.gameHi;strHi=b.strHi;catchHi=b.catchHi;memoHi=b.memoHi;cleanHi=b.cleanHi;typeHi=b.typeHi;battleWins=b.battleWins;battleLosses=b.battleLosses;battleStreak=b.battleStreak;bestBattleStreak=b.bestBattleStreak;dexRewardMask=b.dexRewardMask;
+  memcpy(dailyGoalType,b.dailyGoalType,sizeof(dailyGoalType));memcpy(dailyGoalProgress,b.dailyGoalProgress,sizeof(dailyGoalProgress));memcpy(itemCounts,b.itemCounts,sizeof(itemCounts));memcpy(dexReg,b.dexReg,sizeof(dexReg));memcpy(dexShinyReg,b.dexShinyReg,sizeof(dexShinyReg));memcpy(dexCaught,b.dexCaught,sizeof(dexCaught));memcpy(nick,b.nick,sizeof(nick));nick[sizeof(nick)-1]=0;ceremony=CER_NONE;if (collectionFrame >= unlockedCollectionFrameCount()) collectionFrame=0;save();return true;
+}
+
+bool Pet::hasEvolutionPath(int16_t dex) const {
+  if (dex < 1 || dex > DEX_COUNT) return false;
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++)
+    if (EVOLUTION_RULES[i].from == dex) return true;
+  return false;
+}
+
+// Quedan miembros sin registrar en la linea evolutiva de esta base? Se hace
+// un pequeno recorrido por el grafo para cubrir ramas (Eevee, Tyrogue, etc.).
+bool Pet::lineHasUnregistered(int16_t base) const {
+  int16_t pending[12];
+  uint8_t pendingCount = 0;
+  bool seen[DEX_COUNT + 1] = { false };
+  if (base >= 1 && base <= DEX_COUNT) pending[pendingCount++] = base;
+  while (pendingCount) {
+    int16_t cur = pending[--pendingCount];
+    if (cur < 1 || cur > DEX_COUNT || seen[cur]) continue;
+    seen[cur] = true;
+    if (!isRegistered(cur)) return true;
+    for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+      const EvolutionRule &r = EVOLUTION_RULES[i];
+      if (r.from != cur || seen[r.to]) continue;
+      if (pendingCount < sizeof(pending) / sizeof(pending[0])) pending[pendingCount++] = r.to;
+    }
+  }
+  return false;
+}
+
+uint8_t Pet::eggRarity() const {
+  return (eggTarget >= 1 && eggTarget <= DEX_COUNT) ? DEX_TBL[eggTarget].rarity : R_COMUN;
+}
+
+// elige la especie del huevo: tirada de rareza (mejorada por una despedida
+// completa, castigada por una escapada) y sesgo hacia lineas incompletas
+int16_t Pet::pickEggSpecies() {
+  // primera partida: inicial clasico
+  if (registeredCount() == 0) {
+    return CLASSIC_DEX[random(NUM_CLASSIC_DEX)];
+  }
+
+  uint8_t tier = R_COMUN;
+  if (lastEnd != CER_RUNAWAY) {
+    bool blessed = (lastEnd == CER_FAREWELL);
+    int rare = (blessed ? 45 : 27) + careBonus();
+    int leg = (registeredCount() >= 25) ? (blessed ? 10 : 3) + careBonus() / 3 : 0;
+    int r = random(100);
+    if (r < leg) tier = R_LEGENDARIO;
+    else if (r < leg + rare) tier = R_RARO;
+  }
+
+  // candidatos del tier con linea incompleta; si no hay, baja de tier;
+  // si la pokedex del tier esta completa, vale cualquiera del tier
+  for (int pass = 0; pass < 2; pass++) {
+    for (int t = tier; t >= R_COMUN; t--) {
+      int16_t cand[DEX_COUNT];
+      int n = 0;
+      for (int16_t d = 1; d <= DEX_COUNT; d++) {
+        if (DEX_TBL[d].rarity != t) continue;
+        if (pass == 0 && !lineHasUnregistered(d)) continue;
+        cand[n++] = d;
+      }
+      if (n > 0) return cand[random(n)];
+    }
+  }
+  return CLASSIC_DEX[random(NUM_CLASSIC_DEX)];  // inalcanzable, por si acaso
+}
+
+void Pet::registerSpecies(int16_t dex) {
+  if (dex < 1 || dex > DEX_COUNT) return;
+  bool wasKnown = isRegistered(dex) || isCaught(dex);
+  dexReg[(dex - 1) >> 3] |= (1 << ((dex - 1) & 7));
+  if (shiny) dexShinyReg[(dex - 1) >> 3] |= (1 << ((dex - 1) & 7));
+  if (!wasKnown) applyDexRewards();
+}
+
+// la racha y el vinculo mejoran el sorteo del huevo (0..~14)
+int Pet::careBonus() const {
+  int s = streak > 30 ? 30 : streak;
+  return s / 3 + bond / 25;
+}
+
+uint8_t Pet::dailyGoalTarget(uint8_t goalType) const {
+  switch (goalType) {
+    case DAILY_GOAL_CARE: return 1;
+    case DAILY_GOAL_PLAY: return 1;
+    case DAILY_GOAL_BATTLE: return 1;
+    case DAILY_GOAL_CATCH: return 5;
+    case DAILY_GOAL_MEMO: return 3;
+    default: return 1;
+  }
+}
+
+bool Pet::dailyGoalComplete(uint8_t index) const {
+  return index < DAILY_GOAL_COUNT && (dailyGoalDone & (1 << index));
+}
+
+void Pet::ensureDailyGoals() {
+  if (isEgg() || ceremony != CER_NONE) return;
+  uint32_t d = today();
+  if (d == 0 || d == dailyGoalDay) return;
+  static const uint8_t POOL[] = {
+    DAILY_GOAL_CARE, DAILY_GOAL_PLAY, DAILY_GOAL_CATCH, DAILY_GOAL_MEMO, DAILY_GOAL_BATTLE
+  };
+  uint8_t seed = (uint8_t)((d + (speciesId > 0 ? speciesId : 0)) % 5);
+  for (uint8_t i = 0; i < DAILY_GOAL_COUNT; i++) {
+    dailyGoalType[i] = POOL[(seed + i) % 5];
+    dailyGoalProgress[i] = 0;
+  }
+  dailyGoalDone = 0;
+  dailyGoalDay = d;
+  save();
+}
+
+void Pet::applyDailyReward() {
+  joy = clamp100((int)joy + 4);
+  addBond(1);
+}
+
+void Pet::noteDailyGoal(uint8_t goalType, uint8_t amount) {
+  if (isEgg() || ceremony != CER_NONE || amount == 0) return;
+  ensureDailyGoals();
+  if (dailyGoalDay == 0) return;
+  bool changed = false;
+  for (uint8_t i = 0; i < DAILY_GOAL_COUNT; i++) {
+    if (dailyGoalType[i] != goalType || dailyGoalComplete(i)) continue;
+    uint8_t target = dailyGoalTarget(goalType);
+    uint16_t next = (uint16_t)dailyGoalProgress[i] + amount;
+    dailyGoalProgress[i] = next > target ? target : next;
+    changed = true;
+    if (dailyGoalProgress[i] >= target) {
+      dailyGoalDone |= (1 << i);
+      applyDailyReward();
+      heartUntil = millis() + HEART_MS;
+      sfxPlay(SFX_DAILY_GOAL);
+    }
+  }
+  if (changed) save();
+}
+
+// primer cuidado del dia: avanza la racha y afianza el vinculo
+void Pet::registerCare() {
+  if (easyMode) topUpCare();  // tambien tras jugar/entrenar, antes del save
+  if (isEgg() || ceremony != CER_NONE) return;
+  uint32_t d = today();
+  if (d == 0 || d == lastCareDay) return;  // sin reloj, o ya conto hoy
+  if (lastCareDay == 0 || d == lastCareDay + 1) {
+    streak++;
+  } else {
+    streak = 1;        // hubo un hueco de dias
+    lastMilestone = 0;
+  }
+  lastCareDay = d;
+  bondToday = 0;
+  if (streak > bestStreak) bestStreak = streak;
+  bond = clamp100(bond + 4);
+  uint16_t ms = (streak >= 100) ? 100 : (streak >= 30) ? 30
+              : (streak >= 7)   ? 7   : (streak >= 3)  ? 3 : 0;
+  if (ms > lastMilestone) {
+    lastMilestone = ms;
+    milestoneUntil = millis() + 4500;
+  }
+  checkMedals();
+  save();
+}
+
+void Pet::addBond(uint8_t amt) {
+  if (bondToday >= 8) return;  // tope diario: el vinculo no se farmea
+  bond = clamp100(bond + amt);
+  bondToday += amt;
+}
+
+void Pet::checkMedals() {
+  if (isEgg()) return;
+  uint16_t before = medals;
+  if (level() >= 10) medals |= MED_LV10;
+  if (level() >= 25) medals |= MED_LV25;
+  if (level() >= 50) medals |= MED_LV50;
+  if (berryKnown) medals |= MED_BERRY;
+  if (streak >= 7) medals |= MED_STREAK7;
+  if (bond >= 100) medals |= MED_BOND;
+  if (!hasEvolutionPath(speciesId)) medals |= MED_FINAL;
+  if (weight == 0 && level() >= 5 && careMistakes == 0) medals |= MED_FIT;
+  if ((hoennSealMask & 0x07) == 0x07) medals |= MED_HOENN_EXPLORER;
+  uint16_t gained = medals & ~before;
+  if (gained) {
+    for (uint16_t m = gained; m; m &= (m - 1)) totalMedals++;
+    newMedal = gained;
+    medalUntil = millis() + 4000;
+    if (!sleeping) sfxPlay(SFX_MEDAL);
+    save();
+  }
+}
+
+void Pet::rename(const char *name) {
+  strncpy(nick, name, sizeof(nick) - 1);
+  nick[sizeof(nick) - 1] = 0;
+  save();
+}
+
+static uint16_t calcStat(uint8_t base, uint8_t gene, uint8_t lvl, uint8_t tr) {
+  return (uint16_t)base * gene / 100 + lvl + tr;
+}
+
+uint16_t Pet::atkStat() const {
+  return isEgg() ? 0 : calcStat(DEX_TBL[speciesId].bAtk, geneAtk, level(), trAtk);
+}
+uint16_t Pet::defStat() const {
+  return isEgg() ? 0 : calcStat(DEX_TBL[speciesId].bDef, geneDef, level(), trDef);
+}
+uint16_t Pet::speStat() const {
+  return isEgg() ? 0 : calcStat(DEX_TBL[speciesId].bSpe, geneSpe, level(), trSpe);
+}
+
+uint16_t Pet::registeredCount() const {
+  uint16_t n = 0;
+  for (int i = 1; i <= DEX_COUNT; i++)
+    if (isRegistered(i)) n++;
+  return n;
+}
+
+uint16_t Pet::caughtCount() const {
+  uint16_t n = 0;
+  for (int i = 1; i <= DEX_COUNT; i++)
+    if (isCaught(i)) n++;
+  return n;
+}
+
+uint16_t Pet::knownDexCount() const {
+  uint16_t n = 0;
+  for (int i = 1; i <= DEX_COUNT; i++)
+    if (isRegistered(i) || isCaught(i)) n++;
+  return n;
+}
+
+uint8_t Pet::collectionRank() const {
+  uint16_t known = knownDexCount();
+  static const uint16_t GOALS[] = { 10, 25, 50, 100, 151, 160, 200, 251, 300, 386 };
+  uint8_t rank = 0;
+  for (uint8_t i = 0; i < sizeof(GOALS) / sizeof(GOALS[0]); i++)
+    if (known >= GOALS[i]) rank = i + 1;
+  return rank;
+}
+
+uint8_t Pet::unlockedCollectionFrameCount() const {
+  return (uint8_t)(collectionRank() + 1);
+}
+
+bool Pet::setCollectionFrame(uint8_t frame) {
+  if (frame >= unlockedCollectionFrameCount()) return false;
+  if (collectionFrame == frame) return true;
+  collectionFrame = frame;
+  save();
+  return true;
+}
+
+uint16_t Pet::nextDexGoal() const {
+  static const uint16_t GOALS[] = { 10, 25, 50, 100, 151, 160, 200, 251, 300, 386 };
+  uint16_t known = knownDexCount();
+  for (uint8_t i = 0; i < sizeof(GOALS) / sizeof(GOALS[0]); i++)
+    if (known < GOALS[i]) return GOALS[i];
+  return 386;
+}
+
+uint16_t Pet::applyDexRewards() {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  static const uint16_t GOALS[] = { 10, 25, 50, 100, 151, 160, 200, 251, 300, 386 };
+  uint16_t known = knownDexCount();
+  uint16_t reached = 0;
+  for (uint8_t i = 0; i < sizeof(GOALS) / sizeof(GOALS[0]); i++) {
+    uint16_t bit = (uint16_t)1U << i;
+    if (known < GOALS[i] || (dexRewardMask & bit)) continue;
+    dexRewardMask |= bit;
+    reached = GOALS[i];
+    if (GOALS[i] == 10) joy = clamp100((int)joy + 5);
+    else if (GOALS[i] == 25) addBond(2);
+    else if (GOALS[i] == 50) {
+      if (trAtk <= trDef && trAtk <= trSpe) trAtk = clamp100((int)trAtk + 1);
+      else if (trDef <= trAtk && trDef <= trSpe) trDef = clamp100((int)trDef + 1);
+      else trSpe = clamp100((int)trSpe + 1);
+    } else if (GOALS[i] == 100) {
+      addBond(4);
+    } else {
+      heartUntil = millis() + HEART_MS;
+    }
+  }
+  if (reached) save();
+  if (reached) {
+    lastDexReward = reached;
+    dexRewardUntil = millis() + 4200;
+    sfxPlay(SFX_MEDAL);
+  }
+  return reached;
+}
+
+void Pet::registerCaught(int16_t dex, bool shinyVariant) {
+  if (dex < 1 || dex > DEX_COUNT) return;
+  bool wasKnown = isRegistered(dex) || isCaught(dex);
+  dexCaught[(dex - 1) >> 3] |= (1 << ((dex - 1) & 7));
+  if (shinyVariant) dexShinyReg[(dex - 1) >> 3] |= (1 << ((dex - 1) & 7));
+  noteDailyGoal(DAILY_GOAL_CATCH, 1);
+  if (!wasKnown) applyDexRewards();
+  save();
+}
+
+uint8_t Pet::catchChanceForWild(int16_t wildDex, uint8_t wildLevel, uint8_t petLevel, bool closeWin) const {
+  if (wildDex < 1 || wildDex > DEX_COUNT) return 0;
+  const DexEntry &wild = DEX_TBL[wildDex];
+  if (wild.rarity == R_LEGENDARIO) return 0;
+  int chance = wild.rarity == R_RARO ? 28 : 55;
+  int levelGap = (int)wildLevel - (int)(petLevel ? petLevel : 1);
+  if (levelGap > 0) chance -= levelGap * 4;
+  else if (levelGap < 0) chance += (-levelGap) * 2;
+  if (closeWin) chance += 8;
+  chance += bond / 20;
+  chance += stepCatchBonus();
+  if (wild.rarity == R_RARO && chance > 60) chance = 60;
+  if (chance > 75) chance = 75;
+  if (chance < 10) chance = 10;
+  return (uint8_t)chance;
+}
+
+uint8_t Pet::respectCatchChanceForWild(int16_t wildDex, uint8_t wildLevel, uint8_t petLevel) const {
+  uint8_t normal = catchChanceForWild(wildDex, wildLevel, petLevel, true);
+  if (normal == 0) return 0;
+  uint8_t chance = (uint8_t)((uint16_t)normal * 40 / 100);
+  if (chance < 5) chance = 5;
+  if (chance > 25) chance = 25;
+  return chance;
+}
+
+bool Pet::tryCatchWild(int16_t wildDex, uint8_t wildLevel, uint8_t petLevel, bool closeWin,
+                       uint8_t luckRoll, bool shinyVariant) {
+  uint8_t chance = catchChanceForWild(wildDex, wildLevel, petLevel, closeWin);
+  if (chance == 0) return false;
+  if ((luckRoll % 100) < chance) {
+    registerCaught(wildDex, shinyVariant);
+    joy = clamp100((int)joy + 4);
+    addBond(1);
+    save();
+    return true;
+  }
+  return false;
+}
+
+bool Pet::tryRespectCatchWild(int16_t wildDex, uint8_t wildLevel, uint8_t petLevel,
+                              uint8_t luckRoll, bool shinyVariant) {
+  uint8_t chance = respectCatchChanceForWild(wildDex, wildLevel, petLevel);
+  if (chance == 0) return false;
+  if ((luckRoll % 100) < chance) {
+    registerCaught(wildDex, shinyVariant);
+    save();
+    return true;
+  }
+  return false;
+}
+
+// forma final que ya cumplio su ciclo (7 dias): lista para despedirse. La
+// despedida la dispara el usuario con el boton (no salta sola, para que la vea)
+bool Pet::canFarewellNow() const {
+  return !isEgg() && !sleeping && ceremony == CER_NONE &&
+         !hasEvolutionPath(speciesId) && ageMinutes >= FAREWELL_AGE_MIN;
+}
+
+// abandono total durante 1h: lista para escaparse. La dispara el usuario con el
+// boton (final triste); cuidarla un solo tick la salva (neglectTicks se resetea)
+bool Pet::canRunawayNow() const {
+  return !isEgg() && !sleeping && ceremony == CER_NONE && neglectTicks >= RUNAWAY_TICKS;
+}
+
+void Pet::startFarewell() {
+  if (isEgg() || ceremony != CER_NONE) return;
+  lastEnd = CER_FAREWELL;
+  ceremony = CER_FAREWELL;
+  ceremonyUntil = millis() + CEREMONY_MS;
+  heartUntil = ceremonyUntil;  // corazones durante toda la despedida
+  sfxPlay(SFX_BYE);
+  save();
+}
+
+void Pet::startRunaway() {
+  if (isEgg() || ceremony != CER_NONE) return;
+  lastEnd = CER_RUNAWAY;
+  ceremony = CER_RUNAWAY;
+  ceremonyUntil = millis() + CEREMONY_MS;
+  sfxPlay(SFX_BYE);
+  save();
+}
+
+void Pet::release() {
+  if (isEgg() || ceremony != CER_NONE) return;
+  lastEnd = CER_RELEASE;
+  ceremony = CER_RELEASE;
+  ceremonyUntil = millis() + CEREMONY_MS;
+  heartUntil = ceremonyUntil;
+  sfxPlay(SFX_BYE);
+  save();
+}
+
+void Pet::hatch() {
+  speciesId = eggTarget;
+  shiny = eggShiny;
+  // genes del individuo: 90-110% por stat (cada crianza es unica)
+  geneAtk = 90 + random(21);
+  geneDef = 90 + random(21);
+  geneSpe = 90 + random(21);
+  trAtk = trDef = trSpe = 0;
+  berryKnown = false;
+  bond = 0;          // vinculo, medallas y nombre son del individuo
+  bondToday = 0;
+  medals = 0;
+  newMedal = 0;
+  nick[0] = 0;
+  lastPetInteractMinute = 0;
+  evoDeclinedLv = 0;
+  evoDeclinedAge = 0;
+  farDeclinedAge = 0;
+  registerSpecies(speciesId);  // criado = registrado en la pokedex
+  checkMedals();     // por si nace ya en forma final (legendario)
+  applyPendingStepRewards();
+  sfxPlay(SFX_HATCH);
+  save();
+}
+
+// Los niveles y condiciones de evolucion viven en EVOLUTION_RULES para poder
+// representar ramas y evoluciones de amistad/RTC sin romper partidas antiguas.
+static uint8_t evolutionNeedLevel(const Pet &pet, const EvolutionRule &rule) {
+  uint16_t need = (uint16_t)rule.minLevel + pet.careMistakes;
+  if (need > 100) need = 100;
+  return (uint8_t)need;
+}
+
+static bool evolutionRuleReady(const Pet &pet, const EvolutionRule &rule) {
+  uint8_t need = evolutionNeedLevel(pet, rule);
+  if (pet.level() < need) return false;
+  switch (rule.condition) {
+    case EVO_BOND:
+      return pet.bond >= 50;
+    case EVO_DAY_BOND: {
+      int hour = sceneHourFromEpoch(pet.lastSeenEpoch);
+      return pet.bond >= 50 && hour >= 6 && hour < 20;
+    }
+    case EVO_NIGHT_BOND: {
+      int hour = sceneHourFromEpoch(pet.lastSeenEpoch);
+      return pet.bond >= 50 && (hour < 6 || hour >= 20);
+    }
+    case EVO_ATK_GT_DEF:
+      return pet.atkStat() > pet.defStat();
+    case EVO_DEF_GT_ATK:
+      return pet.defStat() > pet.atkStat();
+    case EVO_ATK_EQ_DEF:
+      return pet.atkStat() == pet.defStat();
+    default:
+      return true;
+  }
+}
+
+uint8_t Pet::evolutionOptionCount() const {
+  if (isEgg() || ceremony != CER_NONE || speciesId < 1 || speciesId > DEX_COUNT) return 0;
+  uint8_t count = 0;
+  int16_t seen[8] = { 0 };
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId || !evolutionRuleReady(*this, rule)) continue;
+    bool duplicate = false;
+    for (uint8_t j = 0; j < count; j++) if (seen[j] == rule.to) duplicate = true;
+    if (!duplicate && count < sizeof(seen) / sizeof(seen[0])) seen[count++] = rule.to;
+  }
+  return count;
+}
+
+int16_t Pet::evolutionOption(uint8_t index) const {
+  if (isEgg() || ceremony != CER_NONE || speciesId < 1 || speciesId > DEX_COUNT) return -1;
+  uint8_t count = 0;
+  int16_t seen[8] = { 0 };
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId || !evolutionRuleReady(*this, rule)) continue;
+    bool duplicate = false;
+    for (uint8_t j = 0; j < count; j++) if (seen[j] == rule.to) duplicate = true;
+    if (duplicate || count >= sizeof(seen) / sizeof(seen[0])) continue;
+    seen[count] = rule.to;
+    if (count == index) return rule.to;
+    count++;
+  }
+  return -1;
+}
+
+// Idle fork: ignore level/bond/stat conditions, keep only "this species has a
+// branch to that species".  Duplicate targets are collapsed so a random pick
+// stays uniform across real forms.
+uint8_t Pet::idleEvolutionOptionCount() const {
+  if (isEgg() || ceremony != CER_NONE || speciesId < 1 || speciesId > DEX_COUNT) return 0;
+  uint8_t count = 0;
+  int16_t seen[8] = { 0 };
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId || rule.to < 1 || rule.to > DEX_COUNT) continue;
+    bool duplicate = false;
+    for (uint8_t j = 0; j < count; j++) if (seen[j] == rule.to) duplicate = true;
+    if (!duplicate && count < sizeof(seen) / sizeof(seen[0])) seen[count++] = rule.to;
+  }
+  return count;
+}
+
+int16_t Pet::idleEvolutionOption(uint8_t index) const {
+  if (isEgg() || ceremony != CER_NONE || speciesId < 1 || speciesId > DEX_COUNT) return -1;
+  uint8_t count = 0;
+  int16_t seen[8] = { 0 };
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId || rule.to < 1 || rule.to > DEX_COUNT) continue;
+    bool duplicate = false;
+    for (uint8_t j = 0; j < count; j++) if (seen[j] == rule.to) duplicate = true;
+    if (duplicate || count >= sizeof(seen) / sizeof(seen[0])) continue;
+    seen[count] = rule.to;
+    if (count == index) return rule.to;
+    count++;
+  }
+  return -1;
+}
+
+bool Pet::idleForceEvolveTo(int16_t target) {
+  if (isEgg() || ceremony != CER_NONE) return false;
+  if (target < 1 || target > DEX_COUNT || target == speciesId) return false;
+  bool legal = false;
+  for (uint8_t i = 0; i < idleEvolutionOptionCount(); i++)
+    if (idleEvolutionOption(i) == target) legal = true;
+  if (!legal) return false;
+  prevSpeciesId = speciesId;
+  speciesId = target;
+  registerSpecies(speciesId);
+  sfxPlay(SFX_EVOLVE);
+  evolveUntil = millis() + EVOLVE_ANIM_MS;
+  save();
+  return true;
+}
+
+uint8_t Pet::evolutionRequiredLevel() const {
+  if (isEgg() || speciesId < 1 || speciesId > DEX_COUNT) return 100;
+  uint16_t best = 100;
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId) continue;
+    uint16_t need = evolutionNeedLevel(*this, rule);
+    if (need < best) best = need;
+  }
+  return best > 100 ? 100 : (uint8_t)best;
+}
+
+uint8_t Pet::evolutionRequiredLevelFor(int16_t target) const {
+  if (isEgg() || speciesId < 1 || speciesId > DEX_COUNT) return 100;
+  uint16_t required = 0;
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId || (target > 0 && rule.to != target)) continue;
+    // For an automatic branch test, prepare the highest level so every branch
+    // can be selected. For an explicit target, only its matching rule matters.
+    if (rule.minLevel > required) required = rule.minLevel;
+  }
+  if (required == 0) return 100;
+  return required > 100 ? 100 : (uint8_t)required;
+}
+
+bool Pet::evolutionUnlocked() const {
+  return evolutionOptionCount() > 0;
+}
+
+bool Pet::evolutionLevelReached() const {
+  if (isEgg() || ceremony != CER_NONE || speciesId < 1 || speciesId > DEX_COUNT) return false;
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId) continue;
+    if (level() >= evolutionNeedLevel(*this, rule)) return true;
+  }
+  return false;
+}
+
+bool Pet::evolutionNeedsMoreBond() const {
+  if (bond >= 50 || isEgg() || ceremony != CER_NONE) return false;
+  for (uint16_t i = 0; i < EVOLUTION_RULE_COUNT; i++) {
+    const EvolutionRule &rule = EVOLUTION_RULES[i];
+    if (rule.from != speciesId) continue;
+    if (level() < evolutionNeedLevel(*this, rule)) continue;
+    if (rule.condition == EVO_BOND || rule.condition == EVO_DAY_BOND ||
+        rule.condition == EVO_NIGHT_BOND)
+      return true;
+  }
+  return false;
+}
+
+bool Pet::canEvolveTo(int16_t target) const {
+  if (!canEvolveNow() || target < 1 || target > DEX_COUNT) return false;
+  for (uint8_t i = 0; i < evolutionOptionCount(); i++)
+    if (evolutionOption(i) == target) return true;
+  return false;
+}
+
+bool Pet::canEvolveNow() const {
+  return evolutionUnlocked() && !sleeping && healthyStatCount() >= 3;
+}
+
+bool Pet::wantEvolveButton() const {
+  if (sleeping || !hasEvolutionPath(speciesId) || !evolutionLevelReached()) return false;
+  if (level() >= 100) return ageMinutes >= evoDeclinedAge;
+  return level() > evoDeclinedLv;
+}
+
+void Pet::declineEvolve() {
+  if (level() >= 100) {
+    evoDeclinedLv = 100;
+    evoDeclinedAge = ageMinutes + 1440;
+  } else {
+    evoDeclinedLv = level();
+  }
+  save();
+}
+
+void Pet::resetEvolutionDeferral() {
+  evoDeclinedLv = 0;
+  evoDeclinedAge = 0;
+}
+
+void Pet::evolveTo(int16_t target) {
+  if (!canEvolveTo(target)) return;
+  prevSpeciesId = speciesId;
+  speciesId = target;
+  registerSpecies(speciesId);
+  sfxPlay(SFX_EVOLVE);
+  evolveUntil = millis() + EVOLVE_ANIM_MS;
+  save();
+}
+
+void Pet::evolve() {
+  if (!canEvolveNow()) return;
+  int16_t next = -1;
+  for (uint8_t i = 0; i < evolutionOptionCount(); i++) {
+    int16_t candidate = evolutionOption(i);
+    if (candidate >= 1 && !isRegistered(candidate)) { next = candidate; break; }
+    if (next < 0) next = candidate;
+  }
+  if (next >= 1) evolveTo(next);
+}
+
+void Pet::feed() {
+  feedBerry(0);
+}
+
+void Pet::feedBerry(uint8_t color) {
+  if (ceremony != CER_NONE) return;
+  if (isEgg() || sleeping) return;
+  if (lovesBerry(color)) {
+    fullness = clamp100(fullness + 35);
+    joy = clamp100(joy + 10);
+    heartUntil = millis() + HEART_MS;  // "le encanta!"
+    berryKnown = true;                 // descubierto: se muestra en la ficha
+    addBond(2);
+  } else {
+    fullness = clamp100(fullness + 25);
+  }
+  eatUntil = millis() + EAT_ANIM_MS;
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+}
+
+void Pet::feedCandy() {
+  if (ceremony != CER_NONE) return;
+  if (isEgg() || sleeping) return;
+  fullness = clamp100(fullness + 10);
+  joy = clamp100(joy + 12);
+  weight = clamp100(weight + 12);  // las chuches pasan factura
+  eatUntil = millis() + EAT_ANIM_MS;
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+}
+
+void Pet::playResult(uint8_t score) {
+  if (ceremony != CER_NONE || isEgg()) return;
+  uint8_t v = trSpe + score / 5;  // jugar entrena la velocidad
+  trSpe = v > 100 ? 100 : v;
+  joy = clamp100(joy + 5 + (score > 15 ? 30 : score * 2));
+  energy = dropTo(energy, 10 + score / 2, 5);
+  fullness = dropTo(fullness, 5, 5);
+  int burn = (int)weight - score * 2;  // el ejercicio quema peso
+  weight = burn > 0 ? burn : 0;
+  if (score >= 5) heartUntil = millis() + HEART_MS;
+  if (score > gameHi) gameHi = score;  // nuevo record
+  addBond(2);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_PLAY, 1);
+  save();
+}
+
+uint8_t Pet::applyCatchResult(uint8_t score) {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  uint8_t gain = score / 3;
+  if (gain > 12) gain = 12;
+  uint8_t v = trSpe + gain;
+  trSpe = v > 100 ? 100 : v;
+  joy = clamp100(joy + 4 + (score > 12 ? 20 : score));
+  energy = dropTo(energy, 8 + score / 3, 5);
+  fullness = dropTo(fullness, 4, 5);
+  int burn = (int)weight - score;
+  weight = burn > 0 ? burn : 0;
+  if (score >= 5) heartUntil = millis() + HEART_MS;
+  if (score > catchHi) catchHi = score;
+  addBond(1);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CATCH, score);
+  save();
+  return gain;
+}
+
+uint8_t Pet::applyMemoResult(uint8_t rounds) {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  uint8_t gain = rounds / 2;
+  if (gain > 10) gain = 10;
+  uint8_t v = trDef + gain;
+  trDef = v > 100 ? 100 : v;
+  joy = clamp100(joy + 5 + (rounds > 8 ? 18 : rounds * 2));
+  energy = dropTo(energy, 6 + rounds / 2, 5);
+  fullness = dropTo(fullness, 3, 5);
+  if (rounds >= 4) heartUntil = millis() + HEART_MS;
+  if (rounds > memoHi) memoHi = rounds;
+  addBond(2);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_MEMO, rounds);
+  save();
+  return gain;
+}
+
+uint8_t Pet::applyCleanResult(uint8_t score) {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  uint8_t gain = score / 2;
+  if (gain > 18) gain = 18;
+  hygiene = clamp100((int)hygiene + 20 + score * 3);
+  joy = clamp100((int)joy + 3 + (score > 10 ? 12 : score));
+  energy = dropTo(energy, 4 + score / 4, 8);
+  if (poops && score >= 4) poops--;
+  if (score >= 6) heartUntil = millis() + HEART_MS;
+  if (score > cleanHi) cleanHi = score;
+  addBond(1);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+  return gain;
+}
+
+uint8_t Pet::applyTypeResult(uint8_t score) {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  uint8_t gain = score / 4;
+  if (gain > 10) gain = 10;
+  uint8_t v = trAtk + gain;
+  trAtk = v > 100 ? 100 : v;
+  joy = clamp100((int)joy + 4 + (score > 12 ? 18 : score));
+  energy = dropTo(energy, 5 + score / 3, 8);
+  fullness = dropTo(fullness, 2, 5);
+  if (score >= 5) heartUntil = millis() + HEART_MS;
+  if (score > typeHi) typeHi = score;
+  addBond(1);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_PLAY, 1);
+  save();
+  return gain;
+}
+
+bool Pet::applyPetEvent(uint8_t eventType) {
+  if (ceremony != CER_NONE || isEgg()) return false;
+  if (eventType == PET_EVENT_BERRY) {
+    fullness = clamp100((int)fullness + 10);
+    joy = clamp100((int)joy + 4);
+  } else if (eventType == PET_EVENT_HEART) {
+    joy = clamp100((int)joy + 6);
+    addBond(1);
+  } else if (eventType == PET_EVENT_SPARKLE) {
+    joy = clamp100((int)joy + 5);
+    if (energy <= hygiene) energy = clamp100((int)energy + 3);
+    else hygiene = clamp100((int)hygiene + 3);
+  } else {
+    return false;
+  }
+  heartUntil = millis() + HEART_MS;
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+  return true;
+}
+
+uint8_t Pet::interactPet(bool eveningBonus) {
+  if (ceremony != CER_NONE || isEgg() || sleeping) return PET_INTERACT_NONE;
+  uint32_t nowMinute = ageMinutes ? ageMinutes : 1;
+  if (lastPetInteractMinute && nowMinute < lastPetInteractMinute + 10) {
+    return PET_INTERACT_NONE;
+  }
+  lastPetInteractMinute = nowMinute;
+  uint8_t result = PET_INTERACT_JOY;
+  PetPersonality p = personality();
+  int joyGain = (p == PERS_PLAYFUL) ? 4 : 2;
+  joy = clamp100((int)joy + joyGain);
+  if (p == PERS_LAZY) {
+    energy = clamp100((int)energy + 2);
+    result |= PET_INTERACT_ENERGY;
+  }
+  bool bondGain = eveningBonus || p == PERS_CALM || (p == PERS_BRAVE && battleWins > 0);
+  if (bondGain) {
+    uint8_t before = bond;
+    addBond(1);
+    if (bond > before) result |= PET_INTERACT_BOND;
+  }
+  heartUntil = millis() + HEART_MS;
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+  return result;
+}
+
+bool Pet::applyShake() {
+  if (ceremony != CER_NONE || isEgg() || sleeping) return false;
+  uint32_t now = millis();
+  if (deadlineActive(now, shakeReadyAt)) return false;
+  uint32_t d = today();
+  if (d != shakeDay) {
+    shakeDay = d;
+    shakeCountToday = 0;
+  }
+  if (d && shakeCountToday >= 8) return false;
+  shakeReadyAt = now + 25000UL;
+  if (d) shakeCountToday++;
+  joy = clamp100((int)joy + 3);
+  heartUntil = now + HEART_MS;
+  pendingSave = true;
+  return true;
+}
+
+void Pet::ensureStepDay() {
+  uint32_t d = today();
+  if (!d) return;
+  if (!stepDay) {
+    stepDay = d;
+    pendingSave = true;
+  } else if (stepDay != d) {
+    stepDay = d;
+    stepsToday = 0;
+    stepDailyRewardMask = 0;
+    pendingSave = true;
+  }
+}
+
+uint32_t Pet::stepGoal(uint8_t index) const {
+  return index < STEP_DAILY_GOAL_COUNT ? STEP_DAILY_GOALS[index] : 0;
+}
+
+bool Pet::stepGoalComplete(uint8_t index) const {
+  uint8_t bit = stepRewardBit(index);
+  return bit != 0 && (stepDailyRewardMask & bit) != 0;
+}
+
+uint8_t Pet::stepTrailRank() const {
+  uint8_t rank = 0;
+  for (uint8_t i = 0; i < sizeof(STEP_TOTAL_GOALS) / sizeof(STEP_TOTAL_GOALS[0]); i++) {
+    if (stepsTotal >= STEP_TOTAL_GOALS[i]) rank = i + 1;
+  }
+  return rank;
+}
+
+uint16_t Pet::stepShinyChancePer4096() const {
+  // Wilde Shinies bleiben selten: 8/4096 = 1/512 ohne Bewegung, bei
+  // 5.000 Tagesschritten steigt der Tagesanteil auf maximal 32/4096.
+  uint16_t units = 8;
+  uint32_t daily = stepsToday / 210UL;
+  if (daily > 24) daily = 24;
+  units += (uint16_t)daily;
+  // Gesamtmeilensteine geben einen kleinen, dauerhaften Trail-Vorteil.
+  if (stepsTotal >= STEP_TOTAL_GOALS[0]) units += 1;
+  if (stepsTotal >= STEP_TOTAL_GOALS[1]) units += 2;
+  if (stepsTotal >= STEP_TOTAL_GOALS[2]) units += 2;
+  if (stepsTotal >= STEP_TOTAL_GOALS[3]) units += 3;
+  return units > 40 ? 40 : units;
+}
+
+uint8_t Pet::stepCatchBonus() const {
+  uint32_t daily = stepsToday / 1000UL;
+  if (daily > 5) daily = 5;
+  uint8_t bonus = (uint8_t)daily;
+  if (stepsTotal >= STEP_TOTAL_GOALS[2]) bonus++;
+  if (stepsTotal >= STEP_TOTAL_GOALS[3]) bonus++;
+  return bonus;
+}
+
+void Pet::recordStepReward(uint8_t index) {
+  uint8_t bit = stepRewardBit(index);
+  if (!bit || (stepDailyRewardMask & bit)) return;
+  stepDailyRewardMask |= bit;
+
+  ExpeditionItem item = stepRewardItemFor(index);
+  if (item < EXP_ITEM_COUNT && canReceiveExpeditionItem(item)) {
+    itemCounts[item]++;
+  } else if (isEgg() || ceremony != CER_NONE) {
+    // Ein Ei hat noch keine Stats. Die Belohnung wird nach dem Schlüpfen
+    // erneut versucht, damit volle Taschen keinen Fortschritt verschlucken.
+    pendingStepRewardMask |= bit;
+  } else if (index == 0) {
+    joy = clamp100((int)joy + 5);
+  } else if (index == 1) {
+    energy = clamp100((int)energy + 10);
+  } else {
+    uint8_t *stat = &trAtk;
+    if (trDef < *stat && trDef <= trSpe) stat = &trDef;
+    else if (trSpe < *stat && trSpe < trDef) stat = &trSpe;
+    if (*stat < 100) *stat = clamp100((int)*stat + 2);
+    else joy = clamp100((int)joy + 8);
+  }
+
+  lastStepRewardEvent = (uint8_t)(STEP_REWARD_SNACK + index);
+  stepRewardUntil = millis() + 4500UL;
+  pendingSave = true;
+}
+
+void Pet::applyPendingStepRewards() {
+  if (!pendingStepRewardMask || isEgg() || ceremony != CER_NONE) return;
+  uint8_t pending = pendingStepRewardMask;
+  pendingStepRewardMask = 0;
+  for (uint8_t i = 0; i < STEP_DAILY_GOAL_COUNT; i++) {
+    uint8_t bit = stepRewardBit(i);
+    if (!(pending & bit)) continue;
+    ExpeditionItem item = stepRewardItemFor(i);
+    if (item < EXP_ITEM_COUNT && canReceiveExpeditionItem(item)) itemCounts[item]++;
+    else if (i == 0) joy = clamp100((int)joy + 5);
+    else if (i == 1) energy = clamp100((int)energy + 10);
+    else if (trAtk < 100) trAtk = clamp100((int)trAtk + 2);
+    else if (trDef < 100) trDef = clamp100((int)trDef + 2);
+    else if (trSpe < 100) trSpe = clamp100((int)trSpe + 2);
+    else joy = clamp100((int)joy + 8);
+    lastStepRewardEvent = (uint8_t)(STEP_REWARD_SNACK + i);
+    stepRewardUntil = millis() + 4500UL;
+  }
+  pendingSave = true;
+}
+
+uint8_t Pet::applyWalk(uint16_t steps, uint32_t nowEpoch) {
+  if (!steps) return 0;
+  if (!nowEpoch) nowEpoch = lastSeenEpoch;
+  uint16_t goal = expeditionStepGoal(expeditionMinutes);
+  if (goal && expeditionActive(nowEpoch) && nowEpoch >= expeditionEndEpoch - (uint32_t)expeditionMinutes * 60UL) {
+    uint32_t progress = (uint32_t)expeditionSteps + steps;
+    expeditionSteps = progress > goal ? goal : (uint16_t)progress;
+    pendingSave = true;
+  }
+  ensureStepDay();
+
+  uint32_t oldToday = stepsToday;
+  uint32_t oldTotal = stepsTotal;
+  uint32_t maxU32 = 0xFFFFFFFFUL;
+  stepsToday = (stepsToday > maxU32 - steps) ? maxU32 : stepsToday + steps;
+  stepsTotal = (stepsTotal > maxU32 - steps) ? maxU32 : stepsTotal + steps;
+
+  for (uint8_t i = 0; i < STEP_DAILY_GOAL_COUNT; i++)
+    if (stepsToday >= STEP_DAILY_GOALS[i]) recordStepReward(i);
+  for (uint8_t i = 0; i < sizeof(STEP_TOTAL_GOALS) / sizeof(STEP_TOTAL_GOALS[0]); i++) {
+    uint8_t bit = (uint8_t)(1U << i);
+    if (stepsTotal >= STEP_TOTAL_GOALS[i] && !(stepMilestoneMask & bit)) {
+      stepMilestoneMask |= bit;
+      lastStepRewardEvent = STEP_REWARD_TRAIL_RANK;
+      stepRewardUntil = millis() + 4500UL;
+      pendingSave = true;
+    }
+  }
+  if ((oldToday / 100UL) != (stepsToday / 100UL) ||
+      (oldTotal / 100UL) != (stepsTotal / 100UL)) pendingSave = true;
+
+  // Schritte werden auch beim Ei und in der Zeremonie gezaehlt; nur die
+  // bisherigen JOY/BOND-Wirkungen brauchen ein aktives Pokemon.
+  if (ceremony != CER_NONE || isEgg()) return 0;
+
+  uint32_t d = today();
+  uint32_t hour = unixHourFromEpoch(lastSeenEpoch);
+  if (d != walkDay) {
+    walkDay = d;
+    walkJoyToday = 0;
+    walkBondToday = 0;
+    walkJoyHour = 0;
+    walkHour = hour;
+    walkJoyBank = 0;
+    walkBondBank = 0;
+  } else if (hour != walkHour) {
+    walkHour = hour;
+    walkJoyHour = 0;
+  }
+
+  uint32_t joyBank = (uint32_t)walkJoyBank + steps;
+  uint32_t bondBank = (uint32_t)walkBondBank + steps;
+  uint8_t gained = 0;
+  while (joyBank >= 40 && walkJoyToday < 18 && walkJoyHour < 6) {
+    joyBank -= 40;
+    joy = clamp100((int)joy + 1);
+    walkJoyToday++;
+    walkJoyHour++;
+    gained++;
+  }
+  if (joyBank > 400) joyBank = 400;
+  walkJoyBank = (uint16_t)joyBank;
+
+  while (bondBank >= 150 && walkBondToday < 2) {
+    uint8_t before = bond;
+    addBond(1);
+    if (bond == before) break;
+    bondBank -= 150;
+    walkBondToday++;
+  }
+  if (bondBank > 400) bondBank = 400;
+  walkBondBank = (uint16_t)bondBank;
+
+  if (gained || walkBondToday) pendingSave = true;
+  return gained;
+}
+
+bool Pet::takeMorningGreeting() {
+  uint32_t d = today();
+  if (d == 0 || d == lastMorningDay) return false;
+  if (dayPhaseFromEpoch(lastSeenEpoch) != 0) return false;
+  lastMorningDay = d;
+  if (!isEgg() && !sleeping && ceremony == CER_NONE) {
+    joy = clamp100((int)joy + 2);
+    heartUntil = millis() + HEART_MS;
+  }
+  save();
+  return true;
+}
+
+PetPersonality Pet::personality() const {
+  if (isEgg()) return PERS_BALANCED;
+  if (weight >= 72 || energy <= 20) return PERS_LAZY;
+  if (battleWins >= 8 || bestBattleStreak >= 4) return PERS_BRAVE;
+  if (catchHi >= 18 || memoHi >= 8 || gameHi >= 24 || trSpe >= 55) return PERS_PLAYFUL;
+  if ((bond >= 45 && careMistakes <= 1) || (streak >= 5 && careMistakes == 0)) return PERS_CALM;
+  return PERS_BALANCED;
+}
+
+// saco de entrenamiento: los golpes entrenan la fuerza. Devuelve la subida.
+uint8_t Pet::trainStrength(uint16_t hits) {
+  if (ceremony != CER_NONE || isEgg()) return 0;
+  uint8_t gain = hits / 4;          // ~4 golpes = 1 punto de entrenamiento
+  if (gain > 18) gain = 18;         // tope por sesion: la FUE se forja a fuego lento
+  uint8_t v = trAtk + gain;
+  trAtk = v > 100 ? 100 : v;
+  energy = dropTo(energy, 12, 5);   // cansa
+  fullness = dropTo(fullness, 5, 5);
+  int burn = (int)weight - hits / 3;  // tambien quema peso
+  weight = burn > 0 ? burn : 0;
+  joy = clamp100(joy + 6);
+  if (hits >= 20) heartUntil = millis() + HEART_MS;
+  if (hits > strHi) strHi = hits;   // record de golpes
+  addBond(2);
+  registerCare();
+  save();
+  return gain;
+}
+
+BattleReward Pet::applyBattleWin(int16_t wildDex, bool closeWin) {
+  BattleReward reward;
+  if (ceremony != CER_NONE || isEgg()) return reward;
+  if (wildDex < 1 || wildDex > DEX_COUNT) wildDex = 1;
+  const DexEntry &wild = DEX_TBL[wildDex];
+  reward.amount = (wild.rarity == R_RARO) ? 2 : 1;
+  if (closeWin) reward.amount++;
+  if (wild.bAtk >= wild.bDef && wild.bAtk >= wild.bSpe) {
+    reward.stat = BATTLE_REWARD_DEF;
+    trDef = clamp100((int)trDef + reward.amount);
+  } else if (wild.bDef >= wild.bAtk && wild.bDef >= wild.bSpe) {
+    reward.stat = BATTLE_REWARD_ATK;
+    trAtk = clamp100((int)trAtk + reward.amount);
+  } else {
+    reward.stat = BATTLE_REWARD_SPE;
+    trSpe = clamp100((int)trSpe + reward.amount);
+  }
+  battleWins++;
+  battleStreak++;
+  if (battleStreak > bestBattleStreak) bestBattleStreak = battleStreak;
+  joy = clamp100((int)joy + 8 + (closeWin ? 4 : 0));
+  energy = dropTo(energy, 8, 20);
+  fullness = dropTo(fullness, 3, 10);
+  addBond(closeWin ? 3 : 2);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_BATTLE, 1);
+  save();
+  return reward;
+}
+
+void Pet::applyBattleLoss() {
+  if (ceremony != CER_NONE || isEgg()) return;
+  battleLosses++;
+  battleStreak = 0;
+  joy = dropTo(joy, 12, 20);
+  energy = dropTo(energy, 18, 20);
+  fullness = dropTo(fullness, 4, 10);
+  save();
+}
+
+uint8_t Pet::expeditionEnergyCost(uint8_t minutes) {
+  if (minutes == 15) return 12;
+  if (minutes == 30) return 20;
+  if (minutes == 60) return 32;
+  return 0xFF;
+}
+
+bool Pet::expeditionActive(uint32_t nowEpoch) const {
+  return expeditionEndEpoch != 0 && nowEpoch < expeditionEndEpoch;
+}
+
+bool Pet::expeditionReady(uint32_t nowEpoch) const {
+  return expeditionEndEpoch != 0 && nowEpoch >= expeditionEndEpoch;
+}
+
+uint8_t Pet::expeditionItemCount() const {
+  uint8_t total = 0;
+  for (uint8_t i = 0; i < EXP_ITEM_COUNT; i++) total += itemCounts[i];
+  return total;
+}
+
+ExpeditionHudState Pet::expeditionHudState(uint32_t nowEpoch) const {
+  if (isEgg() || ceremony != CER_NONE) return EXP_HUD_HIDDEN;
+  if (expeditionReady(nowEpoch)) return EXP_HUD_READY;
+  if (expeditionActive(nowEpoch)) return EXP_HUD_ACTIVE;
+  return expeditionItemCount() ? EXP_HUD_BAG : EXP_HUD_HIDDEN;
+}
+
+bool Pet::canReceiveExpeditionItem(ExpeditionItem item) const {
+  if (item >= EXP_ITEM_COUNT || itemCounts[item] >= EXP_ITEM_MAX) return false;
+  return item != EXP_ITEM_TRAIN || trAtk < 100 || trDef < 100 || trSpe < 100;
+}
+
+bool Pet::expeditionInventoryFull() const {
+  for (uint8_t i = 0; i < EXP_ITEM_COUNT; i++) {
+    if (canReceiveExpeditionItem((ExpeditionItem)i)) return false;
+  }
+  return true;
+}
+
+bool Pet::canStartExpedition(uint8_t minutes, uint32_t nowEpoch) const {
+  uint8_t cost = expeditionEnergyCost(minutes);
+  return cost != 0xFF && nowEpoch != 0 && !isEgg() && !sleeping && ceremony == CER_NONE &&
+         expeditionEndEpoch == 0 && energy >= cost && !expeditionInventoryFull();
+}
+
+uint8_t Pet::hoennSealCount() const {
+  uint8_t mask = hoennSealMask & 7, count = 0;
+  while (mask) { count += mask & 1; mask >>= 1; }
+  return count;
+}
+
+bool Pet::hasHoennSeal(ExpeditionSite site) const {
+  return site < EXPEDITION_SITE_COUNT && (hoennSealMask & (1 << site));
+}
+
+uint8_t Pet::expeditionTrainingChance(uint8_t minutes) const {
+  uint8_t base = minutes == 15 ? 8 : minutes == 30 ? 15 : minutes == 60 ? 25 : 0;
+  if (!base) return 0;
+  uint16_t avg = ((uint16_t)fullness + joy + energy + hygiene) / 4;
+  if (avg >= 80 && bond >= 50) return minutes == 15 ? 18 : minutes == 30 ? 30 : 45;
+  if (avg >= 60 && bond >= 20) return minutes == 15 ? 13 : minutes == 30 ? 22 : 35;
+  return base;
+}
+
+ExpeditionItem Pet::expeditionRewardFor(ExpeditionSite site, uint8_t minutes, uint8_t luckRoll, uint8_t itemRoll) const {
+  if (site >= EXPEDITION_SITE_COUNT) return EXP_ITEM_NONE;
+  uint8_t trainingChance = expeditionTrainingChance(minutes);
+  if (site == EXP_SITE_VOLCANO) trainingChance = min((uint8_t)85, (uint8_t)(trainingChance + 30));
+  if (canReceiveExpeditionItem(EXP_ITEM_TRAIN) && luckRoll < trainingChance) return EXP_ITEM_TRAIN;
+  const ExpeditionItem coast[] = { EXP_ITEM_ENERGY, EXP_ITEM_ENERGY, EXP_ITEM_CARE, EXP_ITEM_SNACK };
+  const ExpeditionItem volcano[] = { EXP_ITEM_TRAIN, EXP_ITEM_CARE, EXP_ITEM_SNACK, EXP_ITEM_ENERGY };
+  const ExpeditionItem forest[] = { EXP_ITEM_CARE, EXP_ITEM_CARE, EXP_ITEM_SNACK, EXP_ITEM_ENERGY };
+  const ExpeditionItem *choices = site == EXP_SITE_COAST ? coast : site == EXP_SITE_VOLCANO ? volcano : forest;
+  for (uint8_t i = 0; i < 4; i++) {
+    ExpeditionItem candidate = choices[(itemRoll + i) % 4];
+    if (canReceiveExpeditionItem(candidate)) return candidate;
+  }
+  return EXP_ITEM_NONE;
+}
+
+uint16_t Pet::expeditionStepGoal(uint8_t minutes) {
+  return minutes == 15 ? 250 : minutes == 30 ? 500 : minutes == 60 ? 1000 : 0;
+}
+
+bool Pet::expeditionWalkBonusEarned() const {
+  uint16_t goal = expeditionStepGoal(expeditionMinutes);
+  return goal && expeditionSteps >= goal;
+}
+
+bool Pet::startExpedition(uint8_t minutes, uint32_t nowEpoch, uint8_t luckRoll, uint8_t itemRoll, ExpeditionSite site, uint8_t bonusRoll) {
+  if (!canStartExpedition(minutes, nowEpoch) || site >= EXPEDITION_SITE_COUNT) return false;
+
+  uint8_t cost = expeditionEnergyCost(minutes);
+  ExpeditionItem reward = expeditionRewardFor(site, minutes, luckRoll, itemRoll);
+  if (reward == EXP_ITEM_NONE) return false;
+
+  energy -= cost;
+  // La velocidad acorta la expedicion igual que acorta los minutos de juego;
+  // el modo facil la termina al instante (siempre sale bien).
+  expeditionEndEpoch = nowEpoch + (uint32_t)minutes * 60UL / (gameSpeed ? gameSpeed : 1);
+  if (easyMode) expeditionEndEpoch = nowEpoch;
+  expeditionRewardItem = reward;
+  expeditionSite = site;
+  expeditionMinutes = minutes;
+  expeditionSteps = 0;
+  uint8_t chance = minutes == 15 ? 10 : minutes == 30 ? 15 : 20;
+  expeditionBonusItem = site == EXP_SITE_VOLCANO || bonusRoll < chance ? EXP_ITEM_TRAIN :
+                        site == EXP_SITE_COAST ? EXP_ITEM_ENERGY : EXP_ITEM_CARE;
+  if (easyMode) topUpCare();  // el coste de energia no debe verse ni un tick
+  save();
+  return true;
+}
+
+ExpeditionItem Pet::claimExpedition(uint32_t nowEpoch) {
+  if (!expeditionReady(nowEpoch) || expeditionRewardItem >= EXP_ITEM_COUNT ||
+      !canReceiveExpeditionItem((ExpeditionItem)expeditionRewardItem)) return EXP_ITEM_NONE;
+  ExpeditionItem reward = (ExpeditionItem)expeditionRewardItem;
+  itemCounts[reward]++;
+  if (expeditionWalkBonusEarned()) {
+    if (canReceiveExpeditionItem((ExpeditionItem)expeditionBonusItem)) itemCounts[expeditionBonusItem]++;
+    else energy = clamp100((int)energy + 10);
+  }
+  expeditionMinutes = 0;
+  expeditionSteps = 0;
+  expeditionBonusItem = EXP_ITEM_NONE;
+  if (expeditionSite < EXPEDITION_SITE_COUNT) hoennSealMask |= (uint8_t)(1 << expeditionSite);
+  expeditionEndEpoch = 0;
+  expeditionRewardItem = EXP_ITEM_NONE;
+  expeditionSite = EXP_SITE_NONE;
+  checkMedals();
+  save();
+  return reward;
+}
+
+bool Pet::useExpeditionItem(ExpeditionItem item, int8_t trainingStat) {
+  if (item >= EXP_ITEM_COUNT || itemCounts[item] == 0) return false;
+  if (item == EXP_ITEM_SNACK) {
+    fullness = clamp100((int)fullness + 25);
+    joy = clamp100((int)joy + 5);
+  } else if (item == EXP_ITEM_ENERGY) {
+    energy = clamp100((int)energy + 30);
+  } else if (item == EXP_ITEM_CARE) {
+    hygiene = clamp100((int)hygiene + 30);
+    if (poops > 0) poops--;
+  } else {
+    if (trainingStat == TRAIN_STAT_ATK && trAtk < 100) trAtk = clamp100((int)trAtk + 2);
+    else if (trainingStat == TRAIN_STAT_DEF && trDef < 100) trDef = clamp100((int)trDef + 2);
+    else if (trainingStat == TRAIN_STAT_SPE && trSpe < 100) trSpe = clamp100((int)trSpe + 2);
+    else return false;
+  }
+  itemCounts[item]--;
+  save();
+  return true;
+}
+
+void Pet::play() {
+  if (ceremony != CER_NONE) return;
+  if (isEgg() || sleeping) return;
+  joy = clamp100(joy + 25);
+  energy = clamp100(energy - 10);
+  fullness = clamp100(fullness - 5);
+  heartUntil = millis() + HEART_MS;
+  addBond(2);
+  registerCare();
+  save();
+}
+
+void Pet::toggleLight() {
+  if (ceremony != CER_NONE) return;
+  if (isEgg()) return;
+  sleeping = !sleeping;
+  save();
+}
+
+void Pet::clean() {
+  if (ceremony != CER_NONE) return;
+  poops = 0;
+  hygiene = 100;
+  addBond(1);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+}
+
+void Pet::caress() {
+  if (ceremony != CER_NONE) return;
+  if (isEgg() || sleeping) return;
+  joy = clamp100(joy + 5);
+  heartUntil = millis() + HEART_MS;
+  addBond(1);
+  registerCare();
+  noteDailyGoal(DAILY_GOAL_CARE, 1);
+  save();
+}
+
+void Pet::eggTap() {
+  if (!isEgg()) return;
+  if (++eggTaps >= 3) hatch();
+  else save();
+}
+
+PetMood Pet::mood() const {
+  if (sleeping) return MOOD_SLEEPING;
+  if (eating()) return MOOD_EATING;
+  if (lowestStat() < 25) return MOOD_SAD;
+  return MOOD_HAPPY;
+}
+
+void Pet::save() {
+  ticksSinceSave = 0;
+  pendingSave = false;
+  prefs.putUChar("full", fullness);
+  prefs.putUChar("joy", joy);
+  prefs.putUChar("ene", energy);
+  prefs.putUChar("hyg", hygiene);
+  prefs.putUChar("poop", poops);
+  prefs.putUChar("wgt", weight);
+  prefs.putUChar("gatk", geneAtk);
+  prefs.putUChar("gdef", geneDef);
+  prefs.putUChar("gspe", geneSpe);
+  prefs.putUChar("tatk", trAtk);
+  prefs.putUChar("tdef", trDef);
+  prefs.putUChar("tspe", trSpe);
+  prefs.putBool("bk", berryKnown);
+  prefs.putBool("shy", shiny);
+  prefs.putBool("eshy", eggShiny);
+  prefs.putBool("stpk", starterPick);
+  prefs.putBytes("dexsh", dexShinyReg, sizeof(dexShinyReg));
+  prefs.putUInt("age", ageMinutes);
+  prefs.putShort("dexn", speciesId);
+  prefs.putShort("eggT2", eggTarget);
+  prefs.putUChar("crack", eggTaps);
+  prefs.putUChar("mist", careMistakes);
+  prefs.putBool("sleep", sleeping);
+  prefs.putUChar("lend", lastEnd);
+  // millis()-Deadlines sind nach einem Neustart ungueltig. Der Marker sorgt
+  // dafuer, dass ein bereits begonnener Abschied beim Boot sauber endet.
+  prefs.putUChar("cerp", ceremony);
+  if (lastSeenEpoch) prefs.putUInt("seen", lastSeenEpoch);
+  prefs.putBytes("dexreg", dexReg, sizeof(dexReg));
+  prefs.putBytes("dexcgt", dexCaught, sizeof(dexCaught));
+  prefs.putUShort("strk", streak);
+  prefs.putUShort("bstrk", bestStreak);
+  prefs.putUInt("cday", lastCareDay);
+  prefs.putUChar("bond", bond);
+  prefs.putUShort("medal", medals);
+  prefs.putUShort("tmedal", totalMedals);
+  prefs.putUShort("mstone", lastMilestone);
+  prefs.putUShort("ghi", gameHi);
+  prefs.putUShort("shi", strHi);
+  prefs.putUShort("chi", catchHi);
+  prefs.putUShort("mhi", memoHi);
+  prefs.putUShort("clhi", cleanHi);
+  prefs.putUShort("tyhi", typeHi);
+  prefs.putUShort("bwin", battleWins);
+  prefs.putUShort("bloss", battleLosses);
+  prefs.putUShort("bstk", battleStreak);
+  prefs.putUShort("bbstk", bestBattleStreak);
+  prefs.putUChar("cfrm", collectionFrame);
+  prefs.putUInt("pimin", lastPetInteractMinute);
+  // dxrew was an 8-bit mask in releases through v1.35.3. Keep its low byte
+  // for downgrade compatibility and store the complete mask separately.
+  prefs.putUChar("dxrew", (uint8_t)(dexRewardMask & 0xFF));
+  prefs.putUShort("dxrw2", dexRewardMask);
+  prefs.putUInt("dgday", dailyGoalDay);
+  prefs.putBytes("dgtype", dailyGoalType, sizeof(dailyGoalType));
+  prefs.putBytes("dgprog", dailyGoalProgress, sizeof(dailyGoalProgress));
+  prefs.putUChar("dgdone", dailyGoalDone);
+  prefs.putBytes("items", itemCounts, sizeof(itemCounts));
+  prefs.putUInt("exend", expeditionEndEpoch);
+  prefs.putUChar("exrwd", expeditionRewardItem);
+  prefs.putUChar("exsite", expeditionSite);
+  prefs.putUChar("hseal", hoennSealMask & 7);
+  prefs.putUChar("exmins", expeditionMinutes);
+  prefs.putUShort("exsteps", expeditionSteps);
+  prefs.putUChar("exbonus", expeditionBonusItem);
+  prefs.putUInt("stday", stepDay);
+  prefs.putUInt("stoday", stepsToday);
+  prefs.putUInt("stotal", stepsTotal);
+  prefs.putUChar("stdone", stepDailyRewardMask);
+  prefs.putUChar("stmil", stepMilestoneMask);
+  prefs.putUChar("stpend", pendingStepRewardMask);
+  prefs.putUInt("lmday", lastMorningDay);
+  prefs.putUInt("shkday", shakeDay);
+  prefs.putUChar("shkcnt", shakeCountToday);
+  prefs.putUInt("wday", walkDay);
+  prefs.putUInt("whour", walkHour);
+  prefs.putUChar("wjoy", walkJoyToday);
+  prefs.putUChar("wjhr", walkJoyHour);
+  prefs.putUChar("wbond", walkBondToday);
+  prefs.putUChar("edlv", evoDeclinedLv);
+  prefs.putUInt("edage", evoDeclinedAge);
+  prefs.putString("nick", nick);
+}
+
+void Pet::load() {
+  fullness = prefs.getUChar("full", 80);
+  joy = prefs.getUChar("joy", 80);
+  energy = prefs.getUChar("ene", 80);
+  hygiene = prefs.getUChar("hyg", 100);
+  poops = prefs.getUChar("poop", 0);
+  weight = prefs.getUChar("wgt", 0);
+  geneAtk = prefs.getUChar("gatk", 0);
+  geneDef = prefs.getUChar("gdef", 0);
+  geneSpe = prefs.getUChar("gspe", 0);
+  if (geneAtk == 0) {  // mascota anterior a los genes: tirada unica ahora
+    geneAtk = 90 + random(21);
+    geneDef = 90 + random(21);
+    geneSpe = 90 + random(21);
+  }
+  trAtk = prefs.getUChar("tatk", 0);
+  trDef = prefs.getUChar("tdef", 0);
+  trSpe = prefs.getUChar("tspe", 0);
+  berryKnown = prefs.getBool("bk", false);
+  shiny = prefs.getBool("shy", false);
+  eggShiny = prefs.getBool("eshy", false);
+  starterPick = prefs.getBool("stpk", false);
+  loadDexBitmap(prefs, "dexsh", dexShinyReg, sizeof(dexShinyReg));
+  ageMinutes = prefs.getUInt("age", 0);
+  if (prefs.isKey("dexn")) {
+    speciesId = prefs.getShort("dexn", -1);
+    eggTarget = prefs.getShort("eggT2", 4);
+  } else {
+    // migracion desde la version con indices de flash (0-8)
+    static const uint8_t OLD2DEX[9] = { 4, 5, 6, 1, 2, 3, 7, 8, 9 };
+    int8_t old = prefs.getChar("spec", -1);
+    speciesId = (old >= 0 && old < 9) ? OLD2DEX[old] : -1;
+    int8_t oldT = prefs.getChar("eggT", 0);
+    eggTarget = (oldT >= 0 && oldT < 9) ? OLD2DEX[oldT] : 4;
+  }
+  eggTaps = prefs.getUChar("crack", 0);
+  careMistakes = prefs.getUChar("mist", 0);
+  sleeping = prefs.getBool("sleep", false);
+  lastEnd = prefs.getUChar("lend", CER_NONE);
+  uint8_t pendingCeremony = prefs.getUChar("cerp", CER_NONE);
+  loadDexBitmap(prefs, "dexreg", dexReg, sizeof(dexReg));
+  loadDexBitmap(prefs, "dexcgt", dexCaught, sizeof(dexCaught));
+  streak = prefs.getUShort("strk", 0);
+  bestStreak = prefs.getUShort("bstrk", 0);
+  lastCareDay = prefs.getUInt("cday", 0);
+  bond = prefs.getUChar("bond", 0);
+  medals = prefs.getUShort("medal", 0);
+  totalMedals = prefs.getUShort("tmedal", 0);
+  lastMilestone = prefs.getUShort("mstone", 0);
+  gameHi = prefs.getUShort("ghi", 0);
+  strHi = prefs.getUShort("shi", 0);
+  catchHi = prefs.getUShort("chi", 0);
+  memoHi = prefs.getUShort("mhi", 0);
+  cleanHi = prefs.getUShort("clhi", 0);
+  typeHi = prefs.getUShort("tyhi", 0);
+  battleWins = prefs.getUShort("bwin", 0);
+  battleLosses = prefs.getUShort("bloss", 0);
+  battleStreak = prefs.getUShort("bstk", 0);
+  bestBattleStreak = prefs.getUShort("bbstk", 0);
+  collectionFrame = prefs.getUChar("cfrm", 0);
+  if (collectionFrame >= unlockedCollectionFrameCount()) collectionFrame = 0;
+  lastPetInteractMinute = prefs.getUInt("pimin", 0);
+  dexRewardMask = prefs.isKey("dxrw2")
+                    ? prefs.getUShort("dxrw2", 0)
+                    : (uint16_t)prefs.getUChar("dxrew", 0);
+  dailyGoalDay = prefs.getUInt("dgday", 0);
+  size_t gotTypes = prefs.getBytes("dgtype", dailyGoalType, sizeof(dailyGoalType));
+  size_t gotProg = prefs.getBytes("dgprog", dailyGoalProgress, sizeof(dailyGoalProgress));
+  if (gotTypes != sizeof(dailyGoalType)) {
+    dailyGoalType[0] = DAILY_GOAL_CARE;
+    dailyGoalType[1] = DAILY_GOAL_PLAY;
+    dailyGoalType[2] = DAILY_GOAL_CATCH;
+  }
+  if (gotProg != sizeof(dailyGoalProgress)) {
+    dailyGoalProgress[0] = dailyGoalProgress[1] = dailyGoalProgress[2] = 0;
+  }
+  dailyGoalDone = prefs.getUChar("dgdone", 0);
+  size_t gotItems = prefs.getBytes("items", itemCounts, sizeof(itemCounts));
+  if (gotItems != sizeof(itemCounts)) memset(itemCounts, 0, sizeof(itemCounts));
+  for (uint8_t i = 0; i < EXP_ITEM_COUNT; i++)
+    if (itemCounts[i] > EXP_ITEM_MAX) itemCounts[i] = EXP_ITEM_MAX;
+  expeditionEndEpoch = prefs.getUInt("exend", 0);
+  expeditionRewardItem = prefs.getUChar("exrwd", EXP_ITEM_NONE);
+  expeditionSite = prefs.getUChar("exsite", EXP_SITE_NONE);
+  hoennSealMask = prefs.getUChar("hseal", 0) & 7;
+  expeditionMinutes = prefs.getUChar("exmins", 0);
+  expeditionSteps = prefs.getUShort("exsteps", 0);
+  expeditionBonusItem = prefs.getUChar("exbonus", EXP_ITEM_NONE);
+  if (!expeditionStepGoal(expeditionMinutes) || expeditionBonusItem >= EXP_ITEM_COUNT) {
+    expeditionMinutes=0; expeditionSteps=0; expeditionBonusItem=EXP_ITEM_NONE;
+  } else if (expeditionSteps > expeditionStepGoal(expeditionMinutes)) expeditionSteps=expeditionStepGoal(expeditionMinutes);
+  stepDay = prefs.getUInt("stday", 0);
+  stepsToday = prefs.getUInt("stoday", 0);
+  stepsTotal = prefs.getUInt("stotal", 0);
+  stepDailyRewardMask = prefs.getUChar("stdone", 0) & ((1 << STEP_DAILY_GOAL_COUNT) - 1);
+  stepMilestoneMask = prefs.getUChar("stmil", 0) & ((1 << (sizeof(STEP_TOTAL_GOALS) / sizeof(STEP_TOTAL_GOALS[0]))) - 1);
+  pendingStepRewardMask = prefs.getUChar("stpend", 0) & ((1 << STEP_DAILY_GOAL_COUNT) - 1);
+  lastMorningDay = prefs.getUInt("lmday", 0);
+  shakeDay = prefs.getUInt("shkday", 0);
+  shakeCountToday = prefs.getUChar("shkcnt", 0);
+  walkDay = prefs.getUInt("wday", 0);
+  walkHour = prefs.getUInt("whour", 0);
+  walkJoyToday = prefs.getUChar("wjoy", 0);
+  walkJoyHour = prefs.getUChar("wjhr", 0);
+  walkBondToday = prefs.getUChar("wbond", 0);
+  evoDeclinedLv = prefs.getUChar("edlv", 0);
+  evoDeclinedAge = prefs.getUInt("edage", 0);
+  if (expeditionEndEpoch == 0 || expeditionRewardItem >= EXP_ITEM_COUNT) {
+    expeditionEndEpoch = 0;
+    expeditionRewardItem = EXP_ITEM_NONE;
+    expeditionSite = EXP_SITE_NONE;
+  }
+  prefs.getString("nick", nick, sizeof(nick));
+  // siembra: la mascota actual cuenta como criada (guardados antiguos)
+  if (speciesId >= 1) registerSpecies(speciesId);
+  ceremony = CER_NONE;
+  ceremonyUntil = 0;
+  if (!isEgg() && pendingCeremony >= CER_FAREWELL && pendingCeremony <= CER_RELEASE) {
+    lastEnd = pendingCeremony;
+    newEgg();
+  }
+}
