@@ -32,30 +32,36 @@ COM 포트 확인:
 
 ### 1-1. 설치 페이지 열기
 
-**GitHub Pages를 아직 안 만들었다면** 로컬 서버로 엽니다.
+가장 빠른 길은 **로컬 설치 페이지**입니다(고정 주소 <http://localhost:8000/>).
 
 ```powershell
 cd C:\Users\레오\Documents\ESP32
-py -m http.server 8000 --directory web/dist
+.\tools\serve_installer.ps1          # 이미 빌드된 web/dist 서빙
+.\tools\serve_installer.ps1 -Build   # 5앱 빌드 + installer 재생성 후 서빙
 ```
 
-브라우저에서 <http://localhost:8000> 을 엽니다.
-(`web\`가 아니라 반드시 `web\dist\`를 서빙해야 합니다.)
-
-GitHub Pages를 만든 뒤에는 `https://<사용자>.github.io/<저장소>/` 를 열면 됩니다.
+GitHub Pages(`https://<사용자>.github.io/<저장소>/`)는 푸시 후 CI가 끝나야
+갱신되므로, 방금 만든 빌드를 시험할 때는 로컬 페이지를 쓰세요.
+Web Serial은 `localhost`도 보안 컨텍스트로 인정합니다.
 
 ### 1-2. 설치
 
 1. Arduino IDE, 시리얼 모니터, PuTTY 등 **COM 포트를 잡고 있는 프로그램을 모두 닫습니다.**
-2. 보드를 USB로 연결합니다.
-3. **슬롯 배치**에서 앱을 원하는 순서로 고릅니다. 기본값은
+2. **기기가 앱(게임) 화면이면 BOOT 버튼을 2초 눌러 TamaHub로 돌아옵니다.**
+   앱이 떠 있는 채로 설치하면 그 앱의 USB CDC가 사라지며 세션이 끊길 수 있습니다.
+3. 보드를 USB로 연결합니다.
+4. **슬롯 배치**에서 앱을 원하는 순서로 고릅니다. 기본값은
    `ota_0` Clock / `ota_1` IdlePoke / `ota_2` IdleDigi / `ota_3` Poke / `ota_4` Digi.
-4. **설치 계획**을 확인하고 **일괄 설치 시작**을 누릅니다. 시리얼 포트를 **한 번만**
-   고르면 부트로더·v2 파티션 테이블·허브·선택한 앱이 자동으로 순서대로 기록됩니다
-   (**Erase 없음, NVS 세이브 유지**). 앱마다 버튼을 다시 누를 필요가 없습니다.
-5. 새 기기이거나 세이브를 버려도 될 때만 **처음 설치 / 칩 전체 지우기 (Erase)** 를 엽니다.
-6. 설치가 끝날 때까지 **USB를 뽑지 않습니다.**
-7. 자동 재부팅 후 **TamaHub** 화면에 선택한 앱 카드가 뜨면 성공입니다.
+5. **설치 계획**을 확인하고 **일괄 설치 시작**을 누릅니다. 시리얼 포트를 **한 번만**
+   고르면 부트로더·v2 파티션 테이블·허브·선택한 앱이 자동으로 순서대로 기록됩니다.
+6. **`Erase device` 체크박스는 해제한 채로 Next.** 체크하면 칩 전체가 지워지고,
+   그 지우기가 중간에 끊기면 부트로더까지 사라져 검은 화면이 됩니다.
+   (ESP Web Tools는 Improv가 없는 기기를 "새 기기"로 보고, 예전에는 이 체크 없이
+   조용히 전체 지우기를 했다. 지금은 항상 물어본다.)
+7. 새 기기이거나 세이브를 버려도 될 때만 체크를 켭니다.
+8. 설치가 끝날 때까지 **USB를 뽑지 않습니다.**
+9. 자동 재부팅 후 **TamaHub** 화면에 선택한 앱 카드가 뜨면 성공입니다.
+
 
 > **v1 → v2 마이그레이션**
 > v1은 `factory` 3MB + `ota_0..ota_2` 3MB였고, v2는 `factory`/`ota_0..ota_4` 각 2MB입니다.
@@ -72,6 +78,29 @@ GitHub Pages를 만든 뒤에는 `https://<사용자>.github.io/<저장소>/` �
 - 다운로드 모드에서는 화면이 검은색인 것이 정상입니다.
 
 Web Serial은 **HTTPS 또는 localhost**에서만 동작합니다. `file://`로 열면 안 됩니다.
+
+### 1-4. 검은 화면 / 부팅 불가 — 복구
+
+증상: 화면이 검고, 시리얼도 조용하고, 웹 설치 페이지에서 포트가 잡히지 않는다.
+원인은 대개 **설치 도중에 전체 지우기가 끊긴 것**입니다(부트로더·파티션 테이블·허브가 사라짐).
+칩의 ROM 로더는 살아 있으므로 PC에서 되살릴 수 있습니다.
+
+```powershell
+cd C:\Users\레오\Documents\ESP32
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\repair_device.ps1
+# 최신 빌드로 복구:  ... -File tools\repair_device.ps1 -Build
+# 포트 직접 지정:    ... -File tools\repair_device.ps1 -Port COM7
+```
+
+이 스크립트는 `usb-reset`(USB-Serial/JTAG 리셋 시퀀스)을 쓰기 때문에
+기기가 부트 루프에 있거나 다운로드 모드에 있어도 잡힙니다. 하는 일:
+
+1. `web/dist`의 부트로더(0x0) · 파티션 테이블(0x8000) · 허브(0x20000) · 앱 5개를 다시 씀
+2. 각 파트의 첫 바이트를 읽어 ESP 이미지인지 확인
+3. watchdog 리셋으로 앱을 실행
+
+NVS는 지우지 않으므로 세이브가 살아 있으면 그대로 돌아옵니다.
+포트조차 안 잡히면 USB를 뽑고 **BOOT을 누른 채** 다시 연결한 뒤 실행하세요.
 
 ---
 

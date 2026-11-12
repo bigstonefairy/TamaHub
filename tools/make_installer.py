@@ -120,13 +120,26 @@ def source_version(folder: str, macro: str) -> str:
 
 
 def manifest(name: str, version: str, parts: list[dict], erase: bool) -> dict:
+    # new_install_prompt_erase MUST be true on every manifest.
+    #
+    # ESP Web Tools treats a device without Improv Serial as a brand new device:
+    #   _renderDashboardNoImprov() -> prompt_erase ? ASK_ERASE : _startInstall(true)
+    # Our firmware speaks no Improv, so `false` (or leaving the key out) meant a
+    # silent full-chip erase on every single update.  Erasing 16 MB takes ~20 s,
+    # and whenever that stream broke the chip was left half erased -- bootloader,
+    # partition table and hub gone, i.e. a black screen that would not boot.
+    #
+    # With `true` the dialog offers an "Erase device" checkbox (unchecked by
+    # default) and the parts are written in place when it stays off, which keeps
+    # the bootloader, the hub and NVS intact.  `new_install_improv_wait_time: 0`
+    # skips the pointless 10 s wait for Improv answers the badge never sends.
     m = {
         "name": name,
         "version": version or "1.0",
         "builds": [{"chipFamily": "ESP32-S3", "parts": parts}],
+        "new_install_prompt_erase": True,
+        "new_install_improv_wait_time": 0,
     }
-    if erase:
-        m["new_install_prompt_erase"] = True
     return m
 
 
