@@ -72,13 +72,30 @@ GitHub Pages에 배포되는 `web/dist/index.html` 을 **Chrome 또는 Edge 데�
 > 따라서 파티션 테이블을 다시 써도 **기존 세이브는 그대로**입니다.
 > 앱 오프셋만 바뀌므로 한 번은 모든 앱을 다시 쓰는 것이 안전합니다.
 
-GitHub Pages 없이 로컬에서 시험하려면 `web/dist`를 정적 서버로 열면 됩니다.
-(Web Serial은 `localhost`에서도 동작합니다.)
+### GitHub를 기다리지 않고 설치: 로컬 설치 페이지
+
+**고정 주소: <http://localhost:8000/>**
+
+GitHub Pages는 푸시 후 CI가 끝나야(15~25분) 갱신되지만, 로컬 페이지는 이 PC에서
+방금 빌드한 `web/dist`를 그대로 씁니다. Web Serial은 `localhost`를 보안 컨텍스트로
+인정하므로 공개 사이트와 똑같이 설치 버튼이 동작합니다.
 
 ```powershell
-py -m http.server 8000 --directory web/dist
-# 브라우저에서 http://localhost:8000
+# 1) 이미 빌드된 web/dist를 그대로 서빙
+.\tools\serve_installer.ps1
+
+# 2) 빌드까지 한 번에 (5앱 + installer 재생성 후 서빙)
+.\tools\serve_installer.ps1 -Build
 ```
+
+- 브라우저가 자동으로 열립니다(원치 않으면 `-NoOpen`).
+- 주소를 바꿔야 하면 `-Port 8080` 처럼 지정합니다. 기본 8000이 사용 중이면
+  엉뚱한 포트로 조용히 옮기지 않고 에러로 멈춥니다(북마크가 옛 빌드를 가리키지 않도록).
+- 스크립트를 끄면(Ctrl+C) 페이지도 함께 내려갑니다. 필요할 때 다시 실행하세요.
+
+> CI 대신 로컬 빌드를 기기로 바로 넣는 것도 가능합니다:
+> `.\tools\build_all.ps1 -Installer` 후 `web/dist` 의 `.bin` 을 esptool로 기록
+> (주소는 위 표 참고). 웹 설치 페이지를 쓰는 편이 안전합니다.
 
 v2 전체 설치가 쓰는 주소:
 
