@@ -129,6 +129,8 @@ static uint32_t idleToastUntil = 0;
 static bool idleBooting = true;
 static uint32_t releaseArmUntil = 0;
 
+void idleResetClock();  // defined with the rest of the idle engine
+
 bool helpOpen = false;
 uint8_t helpPage = 0;
 bool uiDirty = true;
@@ -337,7 +339,12 @@ void loadPowerSave() {
 }
 
 void setPowerSave(bool on) {
+  if (powerSave == on) return;
   powerSave = on;
+  // Turning the saver on is what starts the light sleeps, and the first RTC
+  // read after a sleep can fail or return junk.  Dropping the tick baseline
+  // here means the transition itself is never credited to the evolution timer.
+  idleResetClock();
   Preferences p;
   p.begin("idlepoke", false);
   p.putBool("psave", powerSave);
@@ -693,9 +700,23 @@ void idleTick(uint32_t now) {
   if (now - idleLastSecond < 1000UL) return;
 
   uint32_t e = rtcEpoch();
+  const uint32_t monoDt = (now - idleLastSecond) / 1000UL;
   uint32_t dt;
   if (e && idleLastEpoch && e > idleLastEpoch) dt = e - idleLastEpoch;
-  else dt = (now - idleLastSecond) / 1000UL;
+  else dt = monoDt;
+
+  // Never credit more time than the loop has actually been alive.  A failed
+  // I2C read of the PCF85063 (typical right after a light sleep, or while the
+  // screen is off) can return an arbitrary date that passes the year check;
+  // that read used to look like hours of absence and cashed in evolution steps
+  // the player never earned.  Light sleep itself is < 1 s, so +3 s of slack is
+  // plenty for a legitimate tick.
+  const uint32_t limit = monoDt + 3UL;
+  if (dt > limit) {
+    Serial.printf("idle: rtc jump %lus ignored (mono %lus)\n",
+                  (unsigned long)dt, (unsigned long)limit);
+    dt = limit;
+  }
   if (dt == 0) dt = 1;
   if (dt > 86400UL) dt = 86400UL;
   idleLastSecond = now;
@@ -6263,6 +6284,38 @@ static void idleTextOutlined(const char *s, int16_t y, uint8_t size, uint16_t co
   gfx->print(s);
 }
 
+// Battery gauge across the top, the same 26x14 icon and "%d%%" label TamaClock
+// draws, so the two apps read alike.  On USB the cell is filled with a bolt.
+// The PMU values are cached in rtcbat.cpp (2 s, 10 s with the saver on), and
+// drawIdleMain() already runs every frame, so this needs no dirty flag.
+static void drawIdleBattery() {
+  const int16_t w = 26, h = 14;
+  const int16_t x = 198, y = 28;
+  const int pct = batPercent();
+  const bool usb = usbPresent();
+  const uint16_t ink = inkColor();
+  const uint16_t level = pct <= 15 ? UI_BAR_BAD : pct <= 30 ? UI_BAR_WARN : UI_BAR_OK;
+
+  gfx->drawRect(x, y, w, h, UI_TRACK);
+  gfx->fillRect(x + w, y + 4, 3, 6, UI_TRACK);
+  if (usb) {
+    gfx->fillRect(x + 2, y + 2, w - 4, h - 4, batCharging() ? UI_BAR_OK : UI_TRACK);
+    gfx->fillTriangle(x + 15, y + 2, x + 9, y + 8, x + 14, y + 8, ink);
+    gfx->fillTriangle(x + 10, y + 12, x + 16, y + 6, x + 11, y + 6, ink);
+  } else if (pct >= 0) {
+    const int16_t inner = (w - 4) * pct / 100;
+    if (inner > 0) gfx->fillRect(x + 2, y + 2, inner, h - 4, level);
+  }
+
+  char buf[8];
+  if (pct >= 0) snprintf(buf, sizeof(buf), "%d%%", pct);
+  else snprintf(buf, sizeof(buf), "--");
+  gfx->setTextColor(usb ? UI_BAR_OK : ink);
+  setSize(2);
+  setCur(x + w + 8, y + 2);
+  printT(buf);
+}
+
 void drawIdleClockHud() {
   uint32_t e = mainClockEpoch();
   char hm[8] = "--:--";
@@ -6277,23 +6330,30 @@ void drawIdleClockHud() {
     snprintf(date, sizeof(date), "%04d-%02d-%02d",
              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
   }
-  idleTextCentered(date, 80, 2, inkColor());
-  idleTextOutlined(hm, 108, 10, pet.isEgg() ? UI_BAR_WARN : idleAccentColor());
 
-  // Next evolution countdown + a thin progress bar.  Both stay small: the
-  // clock is the thing that should own the upper half of the circle.
+  drawIdleBattery();
+
+  // Evolution countdown sits ABOVE the date with a short bar: the middle of
+  // the circle belongs to the creature, and the clock gets that space back.
   char evo[24];
   uint32_t rem = pet.isEgg() ? 0 : idleRemainingSec();
   if (pet.isEgg()) snprintf(evo, sizeof(evo), "HATCHING");
   else snprintf(evo, sizeof(evo), "EVO %02lu:%02lu",
                 (unsigned long)(rem / 60), (unsigned long)(rem % 60));
-  idleTextCentered(evo, 196, 1, inkColor());
+  const int16_t evoY = 50;
+  idleTextCentered(evo, evoY, 1, inkColor());
 
-  uint16_t accent = pet.isEgg() ? UI_BAR_WARN : idleAccentColor();
-  const int barX = CX - 125, barY = 208, barW = 250, barH = 5;
-  gfx->fillRoundRect(barX, barY, barW, barH, 3, UI_TRACK);
+  const uint16_t accent = pet.isEgg() ? UI_BAR_WARN : idleAccentColor();
+  const int16_t barX = CX - 55, barW = 110, barH = 4;
+  const int16_t barY = evoY + textH(1) + 3;
+  gfx->fillRoundRect(barX, barY, barW, barH, 2, UI_TRACK);
   uint16_t fillW = (uint16_t)((uint32_t)barW * idlePermille() / 1000UL);
-  if (fillW > 2) gfx->fillRoundRect(barX, barY, fillW, barH, 3, accent);
+  if (fillW > 2) gfx->fillRoundRect(barX, barY, fillW, barH, 2, accent);
+
+  idleTextCentered(date, 78, 2, inkColor());
+  // Size 12 is TamaClock's size: 96 px tall, so y=100..196 leaves the creature
+  // (its top edge is at 400 - 178 = 222) untouched.
+  idleTextOutlined(hm, 100, 12, pet.isEgg() ? UI_BAR_WARN : idleAccentColor());
 }
 
 void drawIdleEgg() {

@@ -54,11 +54,13 @@ UI_BAR_BAD = 0xEA87
 UI_WHITE = 0xFFFF
 UI_BG_NIGHT = 0x0842  # dark outline behind the big clock
 
-TIME_Y = 108
-TIME_SIZE = 10
-DATE_Y = 80
-EVO_Y = 196
-BAR_X, BAR_Y, BAR_W, BAR_H = 108, 208, 250, 5
+TIME_Y = 100
+TIME_SIZE = 12
+DATE_Y = 78
+EVO_Y = 50
+BAR_X, BAR_Y, BAR_W, BAR_H = CX - 55, EVO_Y + 8 + 3, 110, 4
+BAT_X, BAT_Y, BAT_W, BAT_H = 198, 28, 26, 14
+BAT_PCT = 86
 LABEL_Y = 416
 HINT_Y = 438
 
@@ -177,21 +179,50 @@ def text_outlined(draw, font, s: str, y: int, size: int, color: int) -> None:
     draw_text(draw, font, s, x, y, size, color)
 
 
+def draw_battery(draw: ImageDraw.ImageDraw, font: bytes, pct: int = BAT_PCT,
+                 usb: bool = False) -> None:
+    """Same 26x14 gauge + "%d%%" label TamaClock/IdlePoke draw at the top."""
+    ink = rgb565(UI_INK)
+    level = UI_BAR_BAD if pct <= 15 else UI_BAR_WARN if pct <= 30 else UI_BAR_OK
+    draw.rectangle([BAT_X, BAT_Y, BAT_X + BAT_W, BAT_Y + BAT_H],
+                   outline=rgb565(UI_TRACK))
+    draw.rectangle([BAT_X + BAT_W, BAT_Y + 4, BAT_X + BAT_W + 3, BAT_Y + 10],
+                   fill=rgb565(UI_TRACK))
+    if usb:
+        draw.rectangle([BAT_X + 2, BAT_Y + 2, BAT_X + BAT_W - 2, BAT_Y + BAT_H - 2],
+                       fill=rgb565(UI_TRACK))
+        draw.polygon([(BAT_X + 15, BAT_Y + 2), (BAT_X + 9, BAT_Y + 8),
+                      (BAT_X + 14, BAT_Y + 8)], fill=ink)
+        draw.polygon([(BAT_X + 10, BAT_Y + 12), (BAT_X + 16, BAT_Y + 6),
+                      (BAT_X + 11, BAT_Y + 6)], fill=ink)
+    elif pct >= 0:
+        inner = (BAT_W - 4) * pct // 100
+        if inner > 0:
+            draw.rectangle([BAT_X + 2, BAT_Y + 2, BAT_X + 2 + inner - 1,
+                            BAT_Y + BAT_H - 2], fill=rgb565(level))
+    label = f"{pct}%" if pct >= 0 else "--"
+    draw_text(draw, font, label, BAT_X + BAT_W + 8, BAT_Y + 2, 2,
+              UI_BAR_OK if usb else UI_INK)
+
+
 def draw_hud(img: Image.Image, draw: ImageDraw.ImageDraw, font: bytes,
              name: str, dex: int, accent: int, remain: str, permille: int,
              night: bool = False, toast: str = "") -> None:
     ink = UI_INK_NIGHT if night else UI_INK
     date = "2026-11-12"
-    text_center(draw, font, date, DATE_Y, 2, ink)
-    text_outlined(draw, font, "12:34", TIME_Y, TIME_SIZE, accent)
+
+    draw_battery(draw, font)
 
     text_center(draw, font, f"EVO {remain}", EVO_Y, 1, ink)
     draw.rounded_rectangle([BAR_X, BAR_Y, BAR_X + BAR_W, BAR_Y + BAR_H],
-                           radius=3, fill=rgb565(UI_TRACK))
+                           radius=2, fill=rgb565(UI_TRACK))
     fw = BAR_W * permille // 1000
     if fw > 2:
         draw.rounded_rectangle([BAR_X, BAR_Y, BAR_X + fw, BAR_Y + BAR_H],
-                               radius=3, fill=rgb565(accent))
+                               radius=2, fill=rgb565(accent))
+
+    text_center(draw, font, date, DATE_Y, 2, ink)
+    text_outlined(draw, font, "12:34", TIME_Y, TIME_SIZE, accent)
 
     label = f"{name}  #{dex:03d}"
     text_center(draw, font, label, LABEL_Y, 1, ink)
