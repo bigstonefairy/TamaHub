@@ -17,6 +17,9 @@
 - [ ] 설치 후 자동 재부팅되고 **TamaHub**가 뜬다.
 - [ ] 시리얼에 `=== TamaHub ===`, `hub v1.2`, 슬롯 5개가 보인다.
       배치한 앱은 `ready v<버전>`, 빈 슬롯은 `EMPTY`로 표시된다.
+- [ ] 설치 페이지 상단 버전 줄(`TamaPoke v1.38.1` 등)과 허브의 `ready v…`,
+      각 앱 설정 화면의 버전이 **모두 같다**. 다르면 스케치에 버전 리터럴이
+      두 개 있는 것이고, `tools/check_installer.py`가 빌드를 실패시킨다.
 
 기대 로그(기본 배치):
 
@@ -24,10 +27,10 @@
 === TamaHub ===
 hub v1.2
   1 CLOCK        @0x220000 ready v1.2.0
-  2 POKEMON      @0x420000 ready v1.38.1
-  3 DIGIMON      @0x620000 ready v1.1.2
-  4 NAV          @0x820000 ready v1.0.0
-  5 EMPTY        @0xa20000 EMPTY
+  2 IDLEPOKE     @0x420000 ready v0.1.0
+  3 IDLEDIGI     @0x620000 ready v0.1.0
+  4 POKEMON      @0x820000 ready v1.38.1
+  5 DIGIMON      @0xa20000 ready v1.1.2
 ```
 
 ## 1. 허브 입력

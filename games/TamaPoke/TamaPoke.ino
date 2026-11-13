@@ -39,7 +39,14 @@
 #define TAMAPOKE_GEN3_RELEASE
 #endif
 
-// Version shown by the TamaHub installer page.
+// The ONLY version literal in this sketch.
+//
+// Three places show this number: the installer page (manifest version), the
+// TamaHub slot list (the "TAMAHUB_VER:" tag below) and the settings screen
+// ("FW v...", which prints FW_VERSION).  They used to be two separate literals
+// -- 1.38.1 up there, 1.38.0 in the settings screen -- so the badge disagreed
+// with the page.  FW_VERSION is now derived from this one literal and the
+// installer check fails the build if a second literal ever appears.
 #define TAMAHUB_APP_VERSION "1.38.1"
 
 #if defined(TAMAPOKE_LOCAL_TEST) && defined(TAMAPOKE_GEN3_RELEASE)
@@ -49,11 +56,11 @@
 #error "Gen-3 source requires an explicit local-test or release build profile"
 #endif
 #ifdef TAMAPOKE_LOCAL_TEST
-#define FW_VERSION "1.38.0-hoenn-walk-local"
+#define FW_VERSION TAMAHUB_APP_VERSION "-hoenn-walk-local"
 #elif defined(TAMAPOKE_GEN3_RELEASE)
-#define FW_VERSION "1.38.0"
+#define FW_VERSION TAMAHUB_APP_VERSION
 #else
-#define FW_VERSION "1.35.3-soft-step"
+#define FW_VERSION TAMAHUB_APP_VERSION "-soft-step"
 #endif
 
 // TamaHub scans the image for this tag, so the app can live in any ota slot.

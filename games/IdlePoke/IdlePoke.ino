@@ -39,8 +39,10 @@
 #define TAMAPOKE_GEN3_RELEASE
 #endif
 
-// Version shown by the TamaHub installer page.
-#define TAMAHUB_APP_VERSION "0.1.0"
+// Version shown in settings and tagged into the image for TamaHub.  Keep it a
+// single literal: the installer reads this same #define, so page, hub and
+// settings always agree.
+#define FW_VERSION "0.1.0"
 
 #if defined(TAMAPOKE_LOCAL_TEST) && defined(TAMAPOKE_GEN3_RELEASE)
 #error "TAMAPOKE_LOCAL_TEST and TAMAPOKE_GEN3_RELEASE are mutually exclusive"
@@ -48,12 +50,11 @@
 #if DEX_COUNT > 251 && !defined(TAMAPOKE_LOCAL_TEST) && !defined(TAMAPOKE_GEN3_RELEASE)
 #error "Gen-3 source requires an explicit local-test or release build profile"
 #endif
-#define FW_VERSION "0.1.0"
 
 // TamaHub scans the image for this tag, so the app can live in any ota slot.
 // Keep the string in .rodata and mark it used: nothing else references it.
 __attribute__((used)) const char kHubAppId[] = "TAMAHUB_APP:IdlePoke";
-__attribute__((used)) const char kHubAppVer[] = "TAMAHUB_VER:" TAMAHUB_APP_VERSION;
+__attribute__((used)) const char kHubAppVer[] = "TAMAHUB_VER:" FW_VERSION;
 
 #define HELP_PAGE_COUNT 3
 #define HELP_LINE_COUNT 6

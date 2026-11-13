@@ -5,6 +5,11 @@ A merged image flashed at offset 0 would overwrite NVS and destroy every save,
 and `boot_app0.bin` lives at 0xE000 inside the 64 KB NVS partition.  This
 script fails the build if either happens, and also verifies that every app part
 matches the frozen partition table.
+
+It also keeps the version numbers honest.  The same release number is shown in
+three places -- the installer page header, the TamaHub slot list (read from the
+"TAMAHUB_VER:" tag inside the image) and the app's own settings screen -- so a
+second literal in a sketch silently made the badge disagree with the page.
 """
 
 from __future__ import annotations
@@ -12,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -82,6 +88,93 @@ SD_ASSETS = (
     "sd/tamaruto/sprites-kiri.pak",
     "sd/tamaruto/sprites-oto.pak",
 )
+
+
+# Sketches that carry a release number.  The installer reads it from the
+# #define, the hub reads it from the TAMAHUB_VER: tag, and the app prints it on
+# its settings screen -- all three have to be the same string.
+VERSION_SOURCES = (
+    os.path.join("hub", "hub.ino"),
+    os.path.join("apps", "TamaClock", "TamaClock.ino"),
+    os.path.join("games", "IdlePoke", "IdlePoke.ino"),
+    os.path.join("games", "IdleDigi", "IdleDigi.ino"),
+    os.path.join("games", "TamaPoke", "TamaPoke.ino"),
+    os.path.join("games", "TamaDigi", "TamaDigi.ino"),
+)
+
+# A literal (#define FW_VERSION "1.38.0"), not a derived one
+# (#define FW_VERSION BASE "-local"), which must not count as a second source.
+VERSION_LITERAL = re.compile(
+    r'^[ \t]*#define[ \t]+([A-Z0-9_]*(?:VERSION|_VER))[ \t]+"([^"]*)"[ \t]*(?://.*)?$',
+    re.MULTILINE,
+)
+
+
+def check_version_literals(errors: list[str]) -> None:
+    """Every sketch must contain exactly one release-number literal."""
+    for rel in VERSION_SOURCES:
+        path = os.path.join(ROOT, rel)
+        if not os.path.isfile(path):
+            errors.append(f"missing sketch {rel}")
+            continue
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        found = VERSION_LITERAL.findall(text)
+        values = {v for _, v in found}
+        if not values:
+            errors.append(f"{rel}: no version literal found")
+        elif len(values) > 1:
+            detail = ", ".join(f"{k}={v}" for k, v in found)
+            errors.append(
+                f"{rel}: {len(values)} different version strings ({detail}); "
+                "derive the displayed version from the tagged one"
+            )
+
+
+def tagged_version(path: str) -> str:
+    """Version the hub reads out of an app image (TAMAHUB_VER:<version>)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return ""
+    marker = b"TAMAHUB_VER:"
+    at = data.rfind(marker)
+    if at < 0:
+        return ""
+    start = at + len(marker)
+    end = data.find(b"\x00", start)
+    if end < 0:
+        return ""
+    return data[start:end].decode("ascii", "ignore")
+
+
+def check_manifest_versions(dist: str, manifests: list[str], errors: list[str]) -> None:
+    """The version a single-app manifest advertises must be in the image it writes."""
+    for name in manifests:
+        path = os.path.join(dist, name)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            continue  # reported above
+        parts = [p for build in data.get("builds") or [] for p in build.get("parts") or []]
+        apps = [
+            p for p in parts
+            if str(p.get("path", "")) in APP_OFFSETS and p.get("path") != "tamahub.bin"
+        ]
+        if len(apps) != 1:
+            continue  # batch manifests list several apps and carry a layout version
+        bin_name = str(apps[0].get("path"))
+        tagged = tagged_version(os.path.join(dist, bin_name))
+        advertised = str(data.get("version") or "")
+        if not tagged:
+            errors.append(f"{name}: {bin_name} carries no TAMAHUB_VER tag")
+        elif tagged != advertised:
+            errors.append(
+                f"{name}: advertises v{advertised} but {bin_name} says v{tagged} "
+                "(stale build, or two version literals in the sketch)"
+            )
 
 
 def main() -> int:
@@ -168,13 +261,17 @@ def main() -> int:
     if missing:
         errors.append(f"manifests never flash: {', '.join(sorted(missing))}")
 
+    check_version_literals(errors)
+    check_manifest_versions(args.dist, manifests, errors)
+
     if errors:
         print("installer check FAILED:", file=sys.stderr)
         for e in errors:
             print(f"  - {e}", file=sys.stderr)
         return 1
 
-    print(f"installer check OK ({len(manifests)} manifests, no NVS writes)")
+    print(f"installer check OK ({len(manifests)} manifests, no NVS writes, "
+          "versions consistent)")
     return 0
 
 

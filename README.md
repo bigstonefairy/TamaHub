@@ -402,6 +402,22 @@ GitHub Pages 설치 페이지의 **“SD 카드에 스프라이트 넣기”** �
 - `-Installer`를 주면 `web/dist`에 설치 프로그램 생성 + `tools/check_installer.py`로
   NVS(`0x9000..0x18FFF`)·`0xE000` 침범 여부 검사
 
+### 버전 번호 규칙 (하나의 리터럴)
+
+설치 페이지 상단의 `TamaPoke v1.38.1`, 허브 슬롯 목록의 `ready v1.38.1`,
+그리고 앱 설정 화면의 `FW v1.38.1`은 **같은 문자열**이어야 합니다.
+허브는 이미지 안의 `TAMAHUB_VER:` 태그를 읽고, 설치 페이지는 스케치의
+`#define`을 읽고, 설정 화면은 `FW_VERSION`을 출력하기 때문입니다.
+
+```c
+#define TAMAHUB_APP_VERSION "1.38.1"          // 유일한 리터럴
+#define FW_VERSION TAMAHUB_APP_VERSION          // 파생 (리터럴 아님)
+```
+
+`tools/check_installer.py`가 스케치마다 버전 리터럴이 두 개 이상이면 빌드를
+실패시키고(`TamaPoke`가 `1.38.1`/`1.38.0`으로 갈렸던 원인), 슬롯 매니페스트의
+버전과 실제 바이너리의 `TAMAHUB_VER:` 태그가 다르면(오래된 빌드) 역시 실패합니다.
+
 ### Windows에서 사용자 폴더 이름이 한글일 때
 
 `C:\Users\레오\...` 같은 경로는 arduino-cli가 링커에 넘기는 `-L` 경로를
